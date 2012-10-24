@@ -1,9 +1,14 @@
+import time
+
+def wrap_object(obj):
+	return ({'ts': time.time()}, obj)
+
 class ReprPack(object):
 	def __init__(self, output):
 		self.output = output
 	
-	def send(self, obj):
-		self.output.write(repr(obj))
+	def send(self, obj, header=None):
+		self.output.write(repr(wrap_object(obj)))
 		self.output.write("\n")
 		self.output.flush()
 

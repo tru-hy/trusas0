@@ -4,6 +4,9 @@
 from PyQt4.Qt import *
 from PyQt4.Qwt5 import *
 import numpy as np
+import time
+import sys
+import argh
 
 
 class SignalPlot(QwtPlot):
@@ -57,40 +60,75 @@ class SignalPlot(QwtPlot):
 
 		self.replot()
 
+class PlotManager(object):
+	def __init__(self, base_time=None,
+			on_add=lambda name, plot: None):
+		if base_time is None:
+			base_time = time.time()
+		self.base_time = base_time
 	
+		self.plots = {}
+		self.on_add = on_add
+		
+		
+	def add_data(self, header, data):
+		ts = header['ts'] - self.base_time
+		for col in data:
+			if not col in self.plots:
+				plot = SignalPlot()
+				self.plots[col] = plot
+				self.on_add(col, plot)
+				
+			plot = self.plots[col]
+			plot.add_datum(ts, data[col])
 
-
-if __name__ == '__main__':
+	def refresh(self):
+		for plot in self.plots.values():
+			if plot.isVisible():
+				plot.refresh()
+		
+@argh.plain_signature
+@argh.arg('-s', '--show_by_default', type=str, nargs='+')
+def main(show_by_default=[]):
 	from trusas0.packing import AsyncIter, ReprUnpack
+
 	import sys
 	import signal
 	signal.signal(signal.SIGINT, signal.SIG_DFL)
 	app = QApplication([])
 	input = AsyncIter(ReprUnpack(sys.stdin))
-	plot = SignalPlot(window_size=30)
-	start_x = None
+	#plot = SignalPlot(window_size=30)
+
+	main = QMainWindow()
+	def new_plot(name, plot):
+		dockwidget = QDockWidget(name, main)
+		dockwidget.setWidget(plot)
+		if name not in show_by_default:
+			dockwidget.setVisible(False)
+		
+		main.addDockWidget(Qt.LeftDockWidgetArea, dockwidget)
+	
+	manager = PlotManager(on_add=new_plot)
 	
 	def consume():
-		global start_x
-		global prev_x
-		has_data = False
-		for obj in input:
-			has_data = True
-			if start_x is None:
-				start_x = obj['time']
+		for header, obj in input:
+			manager.add_data(header, obj)
+		
+		manager.refresh()
 
-			total_a = np.linalg.norm([obj['xforce'],
-				obj['yforce'], obj['zforce']])
-			plot.add_datum(obj['time'] - start_x, total_a)
-
-		if has_data:
-			plot.refresh()
-
-	update_rate = 100
+	update_rate = 30
 	timer = QTimer(); timer.timeout.connect(consume)
 	timer.start(1/float(update_rate)*1000)
-
 	
-
-	plot.show()
+	main.show()
 	app.exec_()
+
+if __name__ == '__main__':
+	parser = argh.ArghParser()
+	
+	argv = sys.argv[1:]
+	# Hacking to disable the subcommand stuff.
+	# See: https://bitbucket.org/neithere/argh/issue/13/
+	subparser = parser.add_commands([argh.alias('')(main)])
+	parser.dispatch(argv=['']+argv)
+
