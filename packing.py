@@ -6,9 +6,14 @@ def wrap_object(obj):
 class ReprPack(object):
 	def __init__(self, output):
 		self.output = output
-	
+
 	def send(self, obj, header=None):
-		self.output.write(repr(wrap_object(obj)))
+		if header is None:
+			data = wrap_object(obj)
+		else:
+			data = (header, obj)
+
+		self.output.write(repr(data))
 		self.output.write("\n")
 		self.output.flush()
 
