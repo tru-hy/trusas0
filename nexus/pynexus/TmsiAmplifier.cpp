@@ -19,6 +19,9 @@
 #include "TmsiAmplifier.h"
 #include "nexus/tmsi.h"
 #include <unistd.h>
+#include <stdexcept>
+#include <cerrno>
+#include <cstring>
 TmsiAmplifier * tmsiAmplifierInstance=NULL;
 
 void handler(int sig)
@@ -75,24 +78,27 @@ int TmsiAmplifier::connect_usb(const char * address) {
 }
 
 int TmsiAmplifier::connect_bluetooth(const char * address) {
-       struct sockaddr_rc addr = {0};
-      int s, status;
-    
-      /* allocate a socket */
-      s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
-    
-      /* set the connection parameters (who to connect to) */
-      addr.rc_family = AF_BLUETOOTH;
-      addr.rc_channel = (uint8_t) 1;
-      addr.rc_bdaddr = *BDADDR_ANY;
-      str2ba(address, &addr.rc_bdaddr );
-    
-      /* open connection to TMSi hardware */
-      status = connect(s, (struct sockaddr *)&addr, sizeof(addr));
-    
-      /* return socket */
-      return(s);
-    return -1;
+    struct sockaddr_rc addr = {0};
+    int s, status;
+  
+    /* allocate a socket */
+    s = socket(AF_BLUETOOTH, SOCK_STREAM, BTPROTO_RFCOMM);
+  
+    /* set the connection parameters (who to connect to) */
+    addr.rc_family = AF_BLUETOOTH;
+    addr.rc_channel = (uint8_t) 1;
+    addr.rc_bdaddr = *BDADDR_ANY;
+    str2ba(address, &addr.rc_bdaddr );
+  
+    /* open connection to TMSi hardware */
+    status = connect(s, (struct sockaddr *)&addr, sizeof(addr));
+    if(status < 0) {
+        //std::string msg(std::strerror(std::errno));
+        throw runtime_error(string("Connecting to device failed: ") + strerror(errno));
+    }
+  
+    /* return socket */
+    return(s);
 }
 
 int TmsiAmplifier::refreshInfo() {
