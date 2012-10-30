@@ -14,6 +14,7 @@ import gobject
 import logging; log = logging.getLogger(__name__)
 import time
 import datetime
+import signal
 
 def ts_to_srt(stamp):
 	t = datetime.timedelta(seconds=stamp)
@@ -105,10 +106,12 @@ def record(output_file, video_device=None, audio_device=None):
 			'filesink location="%(output_file)s" ' \
 		%{'output_file': output_file}
 	
-	pipe_str += 'textoverlay name=preview halignment=left line-alignment=left ! colorspace ! xvimagesink '
+	pipe_str += 'textoverlay name=preview halignment=left line-alignment=left ! colorspace ! ' \
+		'xvimagesink force-aspect-ratio=true sync=false '
 	pipe_str += 'ts_src.text_src0 ! text/plain ! queue ! mux. ' 
 	pipe_str += 'ts_src.text_src1 ! text/plain ! queue ! preview.text_sink ' 
 	pipe_str += 'ts_src name=ts_src ts_src.src ! queue ! preview. '
+	
 
 	if not video_device:
 		pipe_str += "videotestsrc name=video_src ! ts_src.sink "
@@ -122,9 +125,9 @@ def record(output_file, video_device=None, audio_device=None):
 		pipe_str += \
 		' uvch264_src device=%(video_device)s auto-start=true name=video_src ' \
 			'fixed-framerate=true initial-bitrate=50000000 ' \
-			'video_src.vidsrc ! video/x-h264,width=1920,height=1080,framerate=30/1 ! ' \
-			'queue ! h264parse ! mux. ' \
-		'video_src.vfsrc ! video/x-raw-yuv,framerate=30/1 ! ts_src.sink ' \
+			'video_src.vidsrc ! video/x-h264,width=1920,height=1080,framerate=30/1 ! h264parse ! tee name=vidtee ' \
+			'vidtee.src0 ! queue ! mux. ' \
+		'vidtee.src1 ! queue ! vdpauh264dec ! video/x-raw-yuv ! ts_src.sink ' \
 		% {'video_device': video_device}
 	
 	
@@ -183,13 +186,15 @@ def record(output_file, video_device=None, audio_device=None):
 	bus.connect("message", on_message)
 	bus.connect("message::error", on_error)
 	bus.connect("message::eos", on_eos)
+	
 
 	gobject.threads_init()
 	pipeline.set_state(gst.STATE_PLAYING)
 	try:
 		mainloop.run()
 	except KeyboardInterrupt:
-		pass
+		shutdown()
+
 	pipeline.set_state(gst.STATE_NULL)
 
 
