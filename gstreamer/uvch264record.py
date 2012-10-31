@@ -2,6 +2,16 @@
 """
 An application to record from UVC cameras supporting h264 encoding with
 UTC timestamping for global synchronization.
+
+:todo: The uvch264_src crashes when using the viewfinder. The current workaround
+	is not to take the viewfinder data at all, but to decode the h264 stream
+	on the fly (with VDPAU not to kill the whole system).
+:todo: As a workaround to a problem in above workaround, the vdpausink crashes
+	due to some X threading stuff, so we have to use an xvimagesink, which
+	of course drains about half a core in my system.
+:todo: v4l2src also allows getting the h264 stream, but it doesn't seem to work with
+	vdpauh264dec due to some profile problems, so we are for now stuck with
+	uvch264_src and thus Gstreamer 0.10. A sad cascade of hacks and workarounds.
 """
 import sys
 import argh

@@ -4,6 +4,8 @@
 A simple program to transform some data values in the stream
 
 NOTE: This allows execution of arbitrary python code, so use with care!
+
+:todo: Seems very slow
 """
 import argh
 from packing import ReprPack, ReprUnpack
