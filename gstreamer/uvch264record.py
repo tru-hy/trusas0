@@ -197,14 +197,12 @@ def record(output_file, video_device=None, audio_device=None):
 	bus.connect("message::error", on_error)
 	bus.connect("message::eos", on_eos)
 	
+	signal.signal(signal.SIGTERM, lambda *args: shutdown())
+	signal.signal(signal.SIGINT, lambda *args: shutdown())	
 
 	gobject.threads_init()
 	pipeline.set_state(gst.STATE_PLAYING)
-	try:
-		mainloop.run()
-	except KeyboardInterrupt:
-		shutdown()
-
+	mainloop.run()
 	pipeline.set_state(gst.STATE_NULL)
 
 
