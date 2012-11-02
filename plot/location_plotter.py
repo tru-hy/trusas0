@@ -3,14 +3,19 @@
 import sys
 import signal
 from gi.repository import Champlain, GtkChamplain, Gtk, GtkClutter, GObject
+import argh
 
-def main(init_zoom=17, update_freq=10):
+@argh.command
+def main(init_zoom=17, update_freq=10, window_title=None):
 	from trusas0.packing import AsyncIter, ReprUnpack
 	
 	signal.signal(signal.SIGINT, signal.SIG_DFL)
 	GtkClutter.init([])
 
 	window = Gtk.Window()
+	if window_title is not None:
+		window.set_title(window_title)
+	
 	window.connect("destroy", Gtk.main_quit)
 	
 	widget = GtkChamplain.Embed()
@@ -58,4 +63,6 @@ def main(init_zoom=17, update_freq=10):
 	Gtk.main()
 
 if __name__ == '__main__':
-	main()
+	parser = argh.ArghParser()
+	parser.add_commands([argh.alias('')(main)])
+	parser.dispatch(argv=['']+sys.argv[1:])
