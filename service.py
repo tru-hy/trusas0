@@ -6,6 +6,8 @@ import time
 import signal
 import shlex
 import errno
+import trusas0.utils
+log = trusas0.utils.get_logger()
 
 SERVICE_VAR="TRUSAS_SERVICE"
 BASE_DIR_VAR="TRUSAS_DIR"
@@ -153,10 +155,11 @@ def ensure_service(name, command, stdout_file, stderr_file, session_dir, extra_e
 	except ServiceNotFound:
 		pass
 	else:
+		log.info("Reattaching to service %s with pid %s"%(name, pid))
 		return pid
 
-	# TODO: Don't overwrite!?
-	print "Starting ", command
+	log.info("Starting service %s with command '%s'"%(
+			name, " ".join(command)))
 	stdout = open(stdout_file, 'w')
 	stderr = open(stderr_file, 'w')
 	pid = start_service(name, command,
