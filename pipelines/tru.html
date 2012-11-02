@@ -1,0 +1,21 @@
+<div class="row visualization_widgets">
+
+	<div class="span6">
+		<h4>Video</h4>
+		<object type="x-trusas/widget"
+				window="trusas_front_video">
+			loading
+		</object>
+	</div>
+
+	<div class="span6">
+		<h4>Location</h4>
+		<object type="x-trusas/widget"
+				window="trusas_map"
+				service="location"
+				command="tail -f %(service_out)s |%(ROOT)s/plot/location_plotter.py -w trusas_map"
+				>
+		</object>
+	</div>
+
+</div>

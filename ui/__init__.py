@@ -1,5 +1,6 @@
 import os
 from os import path
+import trusas0
 from trusas0.service import ServiceManager, get_running_session
 from PyQt4.Qt import *
 from PyQt4.QtGui import *
@@ -15,7 +16,7 @@ class SessionUi(object):
 	:todo: Figure out how to prevent QWebView not to reload
 		the DOM on new url
 	"""
-	def __init__(self, spec, base_dir):
+	def __init__(self, spec, base_dir, content):
 		self.spec = spec
 		self.base_dir = base_dir
 		# So annoying that QApplication must be
@@ -24,17 +25,15 @@ class SessionUi(object):
 		self.widget = QWebView()
 		self.widget.page().settings().setAttribute(
 			QWebSettings.PluginsEnabled, True)
+		
+		self.main_content = content
 
-		self.embed = WidgetEmbedFactory(self.widget)
+		self.embed = WidgetEmbedFactory(self, parent=self.widget)
 		self.widget.page().setPluginFactory(self.embed)
 		self.templatedir = path.join(path.dirname(__file__), 'template')
 		self.base_url = path.join(self.templatedir, "index.html")
 		self.manager = None
 		self.widget.loadFinished.connect(self.dispatch)
-		self.swallow = {}
-		self.embedded = {}
-		self.swallow_timer = QTimer()
-		self.swallow_timer.timeout.connect(self._swallow_windows)
 
 
 	def __content(self, template):
@@ -86,22 +85,8 @@ class SessionUi(object):
 	
 	def index(self, **kwargs):
 		if not self.manager: return self("startup", **kwargs)
-		self.__content("main.html")
+		self.content.setInnerXml(self.main_content)
 		container = self.dom.findFirst("#embedded-widgets")
-
-		# There's probably a way to get notified
-		# by X when a new window opens, but this
-		# must suffice for now
-		self.swallow_timer.start(1000)
-
-
-		for win_name, human_name in self.swallow.iteritems():
-			container.appendInside("""
-			<div class="span6">
-			<h4>%(human_name)s</h4>
-			<object type="x-trusas/widget" name="%(win_name)s"></object>
-			</div>
-			"""%{'human_name': human_name, 'win_name': win_name})
 
 	def confirm_shutdown(self, **kwargs):
 		self.__content("confirm_shutdown.html")
@@ -113,18 +98,6 @@ class SessionUi(object):
 		finally:
 			self.app.quit()
 
-	def _swallow_windows(self):
-		for name in self.swallow:
-			if name not in self.embed.widgets:
-				continue
-			
-			widget = self.embed.widgets[name]
-			if widget.clientWinId() > 0:
-				continue
-			wid = find_x_window_id(name)
-			if not wid: continue
-			widget.embedClient(wid)
-			
 
 	def run(self):
 		self.widget.show()
@@ -135,19 +108,45 @@ class SessionUi(object):
 
 class WidgetEmbedFactory(QWebPluginFactory):
 	# TODO: Refactor this 2:20AM-code
-	def __init__(self, parent=None):
-		self.widgets = {}
+	def __init__(self, ui, parent=None, poll_interval=1.0,):
 		QWebPluginFactory.__init__(self, parent)
+		self.poll_interval = poll_interval
+		self.ui = ui
+		
+		self.widgets = {}
+
+		# There's probably a way to get notified
+		# by X when a new window opens, but this
+		# must suffice for now
+		self.swallow_timer = QTimer()
+		self.swallow_timer.timeout.connect(self._swallow_windows)
 	
 	def create(self, mimeType, url, names, values):
 		if mimeType != "x-trusas/widget":
 			return None
 		
+		self.swallow_timer.start(int(self.poll_interval*1000))
 		param = dict((str(n), str(v)) for (n, v) in zip(names, values))
-		name = param["name"]
-		if name not in self.widgets:
-			self.widgets[name] = QX11EmbedContainer(self.parent())
-		return self.widgets[name]
+		
+		window = param["window"]
+		if window not in self.widgets.iteritems():
+			self.widgets[window] = QX11EmbedContainer(self.parent())
+
+		widget = self.widgets[window]
+
+		if "command" not in param:
+			return widget
+		
+		args = dict(ROOT=trusas0.ROOT)
+			
+		if "service" in param:
+			service = self.ui.manager.services[param["service"]]
+			args['service_out'] = service.outfile
+		
+		command = param["command"]%args
+
+		subprocess.Popen(command, shell=True)
+		return widget
 		
 	
 	def plugins(self):
@@ -161,37 +160,26 @@ class WidgetEmbedFactory(QWebPluginFactory):
 		plugin.mimeTypes = [mimeType]
 		return [plugin]
 
-class DialogCancelled(Exception): pass
+	def _swallow_windows(self):
+		for name, widget in self.widgets.iteritems():
+			if widget.clientWinId() > 0:
+				continue
+			wid = find_x_window_id(name)
+			if not wid: continue
+			widget.embedClient(wid)
+			
+
 
 def find_x_window_id(name):
 	# Most likely not the most efficient nor nice way to do this
 	try:
 		output = subprocess.check_output(('xwininfo -name %s'%name).split())
 	except Exception, e:
-		log.warning("xwininfo failed: %s"%(str(e)))
+		log.debug("xwininfo failed: %s"%(str(e)))
 		return None
 
 	matches = re.search('^xwininfo: Window id: 0x([0-9A-Fa-f]+)', output, re.MULTILINE)
 	if not matches: return None
 	return int(matches.groups()[0], base=16)
 	
-def _run_dialog(command):
-	"""
-	:todo: Not probably the most beautiful approach
-	"""
-	try:
-		output = subprocess.check_output(command, shell=True)
-	except subprocess.CalledProcessError, e:
-		raise DialogCancelled
-	
-	return output
 
-def string_dialog(name, title):
-	cmd = 'zenity --entry '\
-		'--text="%s" --title "%s"'%(name, title)
-	output = _run_dialog(cmd)
-	
-	return output.strip()
-
-def confirm_dialog(question, title):
-	_run_dialog('zenity --question --text "%s" --title "%s"'%(question, title))
