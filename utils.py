@@ -1,8 +1,114 @@
 """A random collection of utilities and hacks around Python's annoyances"""
-import logging; log = logging.getLogger(__name__)
+import logging
 import json
-
 import inspect
+import sys
+import signal
+import atexit
+
+def get_logger():
+	"""
+	Get's a logger with a saner name for standalone scripts,
+	which get their sys.argv[0] as the name. This is nice if you have
+	a log dump from multiple simultaneous processes.
+	
+	>>> orig_name = __name__; __name__ = '__main__'
+	>>> get_logger().name == sys.argv[0]
+	True
+	>>> __name__ = orig_name
+	
+	Otherwise works as logging.getLogger(__name__)
+	
+	>>> orig_name = __name__; __name__ = 'some_module'
+	>>> get_logger().name
+	'some_module'
+	>>> __name__ = orig_name
+	
+	:todo: Maybe digging out the would-be module name would be
+		nicer as then the behavior would be consistent regardless
+		of how the module is called.
+
+	"""
+	frame = inspect.stack()[1][0]
+	name = frame.f_globals["__name__"]
+	if name == '__main__':
+		name = sys.argv[0]
+	return logging.getLogger(name)
+
+log = get_logger() # Eat the own poison
+
+class register_shutdown:
+	"""
+	Try to ensure a clean shutdown
+
+	Tries to make sure the shutdown function is called in all
+	normal* stoppage situations.
+	
+	
+	If pass_args is TRue, the func gets passed whatever
+	was given by eg atexit-callback or signal callback, so
+	probably the safest thing is to grab **kwargs
+	
+	If unless dont_remove is true and func returns a non-true value or raises
+	an exception, it is removed from the shutdown registry.
+	Without this eg. in signal situation you'd get first called
+	because of the signal and if you shut down nicely, called
+	again by the exit-handler. Also if the callback misbehaves
+	we don't end up in some kind of weird recursion loop.
+	So return non-false from the shutdown function if you
+	are doing something stupid you shouldn't be doing.
+
+	:note: This will most definitely produce weird results if
+		called more than once per process
+
+	* This is in contrast to the Python-developers criteria
+	  which was probably conceived in a lottery on lots of
+	  crack.
+
+	"""
+
+	def __init__(self, func, pass_args=False):
+		self.func = func
+		self.pass_args = pass_args
+		self.already_called = False
+		self.orig_int = signal.signal(signal.SIGINT, self._wrapper)
+		self.orig_term = signal.signal(signal.SIGTERM, self._wrapper)
+		atexit.register(self._wrapper)
+		log.debug("Registering shutdown handler %s"%str(func))
+
+
+	def clear_handlers(self):
+		log.debug("Clearing shudown handler %s"%str(self.func))
+		signal.signal(signal.SIGINT, self.orig_int)
+		signal.signal(signal.SIGTERM, self.orig_term)
+		# Oh god I'm getting tired of these insane design
+		# decisions! First no standard way to remove an
+		# atexit handler.
+		try:
+			atexit._exithandlers.remove((self._wrapper, [], {}))
+		except ValueError:
+			# It seems that the handler is usually magically removed
+			# at some point, so no need to worry
+			pass
+	
+	
+	def _wrapper(self, *args, **kwargs):
+		if self.already_called:
+			log.warning(
+			"Nothing to worry about, but shutdown handler %s called more than once. "\
+			"This shouldn't happen, but it does. Maybe Jami will fix it "\
+			"some day."%self.func)
+			return
+		self.already_called = True
+			
+		if not self.pass_args:
+			args, kwargs = [], {}
+		self.clear_handlers()	
+		
+		self.func(*args, **kwargs)
+		
+		
+
 def arg_dict(ignore=['self']):
 	"""Get dict of current function's arguments
 	
