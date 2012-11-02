@@ -5,6 +5,7 @@ import inspect
 import sys
 import signal
 import atexit
+import traceback
 
 def get_logger():
 	"""
@@ -162,7 +163,41 @@ def sh(command, success_code=0, **kwargs):
 			stdout=result.std_out,
 			stderr=result.std_err,
 			status_code=result.status_code)
-	return result	
+	return result
+
+class Signal(list):
+	def connect(self, handler):
+		if handler in self: return
+		self.append(handler)
+
+	def disconnect(self, handler):
+		try:
+			self.remove(handler)
+		except ValueError:
+			pass
+	
+	def emit(self, *args, **kwargs):
+		for handler in self:
+			handler(*args, **kwargs)
+
+	def robust_emit(self, *args, **kwargs):
+		for handler in self:
+			try:
+				handler(*args, **kwargs)
+			except:
+				traceback.print_exc()
+
+class Hook(list):
+	def __init__(self, func):
+		self.func = func
+		self.before = Signal()
+		self.after = Signal()
+
+	def __call__(self, *args, **kwargs):
+		self.before.robust_emit(*args, **kwargs)
+		retval = self.func(*args, **kwargs)
+		self.after.robust_emit(retval, *args, **kwargs)
+		return retval
 
 if __name__ == "__main__":
     import doctest
