@@ -167,11 +167,21 @@ def ensure_service(name, command, stdout_file, stderr_file, session_dir, extra_e
 
 
 def bury_child(*args):
-	# Just ignore the return value so that
-	# it can be removed from the process table.
-	# This way the pid-polling is same regardless of
-	# whether the process is our child or not
-	os.wait()
+	"""
+	Attempt not to create zombies
+	
+	Just ignores the process' return value so that it can
+	be removed from the process table. This way the pid-polling i
+	same regardless of whether the process is our child or not. And
+	anyway the services detach from our parenthood.
+
+	:note: The SIGCHLD seems to get sent sometimes with os.wait blocking.
+		This is probably because the kernel gets confused on who's
+		who's child on the detach. That's why we use os.WNOHANG-flag.
+	:todo: This seems to quite often return (0, 0) even on valid deaths
+	"""
+	
+	child = os.waitpid(-1, os.WNOHANG)
 
 def get_process_environment(pid, proc_dir):
 	env_path = path.join(proc_dir, str(pid), 'environ')
