@@ -28,6 +28,13 @@ class Service(object):
 		self.outfile = self.outfile_spec%kwargs
 		self.errfile = self.errfile_spec%kwargs
 
+class Command(object):
+	def __init__(self, command):
+		self.command = command
+	
+	def __call__(self, **kwargs):
+		return self.command%kwargs
+
 class ServiceManager(object):
 	class SessionExists(Exception): pass
 	
@@ -66,16 +73,39 @@ class ServiceManager(object):
 	def start(self):
 		signal.signal(signal.SIGCHLD, bury_child)
 		for name in self.services:
-			self.start_service(name)
+			self.ensure_service(name)
 
 	def start_service(self, name):
 		service = self.services[name]
-		pid = ensure_service(name, service.command,
-			service.outfile, service.errfile, self.session_dir,
+
+		log.info("Starting service %s with command '%s'"%(
+			name, " ".join(service.command)))
+		stdout = open(service.outfile, 'w')
+		stderr = open(service.errfile, 'w')
+
+		pid = start_service(name, service.command,
+			stdout.fileno(), stderr.fileno(), self.session_dir,
 			extra_env=service.extra_env)
 		self.pids[name] = pid
+		
+		stdout.close()
+		stderr.close()
+		return pid
 
+	def ensure_service(self, name):
+		try:
+			pid = find_service(name)
+		except ServiceNotFound:
+			pass
+		else:
+			return self.reattach_service(name, pid)
 
+		return self.start_service(name)
+
+	def reattach_service(self, name, pid):
+		log.info("Reattaching to service %s to pid %s"%(name, pid))
+		self.pids[name] = pid
+	
 	def is_running(self, name):
 		try:
 			pid = self.pids[name]
@@ -147,26 +177,6 @@ def pid_is_running(pid):
 		return False
 
 	return True
-
-
-def ensure_service(name, command, stdout_file, stderr_file, session_dir, extra_env={}):
-	try:
-		pid = find_service(name)
-	except ServiceNotFound:
-		pass
-	else:
-		log.info("Reattaching to service %s with pid %s"%(name, pid))
-		return pid
-
-	log.info("Starting service %s with command '%s'"%(
-			name, " ".join(command)))
-	stdout = open(stdout_file, 'w')
-	stderr = open(stderr_file, 'w')
-	pid = start_service(name, command,
-		stdout.fileno(), stderr.fileno(), session_dir, extra_env)
-	stdout.close()
-	stderr.close()
-	return pid
 
 
 def bury_child(*args):
