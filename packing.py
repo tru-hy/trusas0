@@ -1,4 +1,20 @@
 import time
+import sys
+
+def default_packer(output=sys.stdout):
+	"""
+	Will allow to change the default easily
+	in the future.
+	"""
+	return ReprPack(output)
+
+def default_unpacker(input=sys.stdin):
+	"""
+	Will allow to change the default easily
+	in the future.
+	"""
+	return ReprUnpack(input)
+	
 
 def wrap_object(obj):
 	return ({'ts': time.time()}, obj)
