@@ -21,7 +21,6 @@ def _generate_function(source):
 @argh.plain_signature
 @argh.arg('transformations', type=str, nargs='+')
 def main(transformations):
-	global d # Not passing d as a parameter 
 	funcs = map(_generate_function, transformations)
 	
 	input = default_unpacker()
