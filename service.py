@@ -18,6 +18,7 @@ class Service(object):
 		self.command_spec = command_spec
 		self.outfile_spec = outfile_spec
 		self.errfile_spec = errfile_spec
+		self.extra_env = {}
 
 	def parametrize(self, **kwargs):
 		self.command = tuple(part%kwargs
@@ -68,7 +69,8 @@ class ServiceManager(object):
 	def start_service(self, name):
 		service = self.services[name]
 		pid = ensure_service(name, service.command,
-			service.outfile, service.errfile, self.session_dir)
+			service.outfile, service.errfile, self.session_dir,
+			extra_env=service.extra_env)
 		self.pids[name] = pid
 
 
@@ -93,7 +95,6 @@ class ServiceManager(object):
 		
 		for i in range(int(timeout/poll_interval)):
 			for dead in self.dead_services():
-				print "DEAD", dead
 				del self.pids[dead]
 			if len(self.pids) == 0:
 				return
@@ -146,7 +147,7 @@ def pid_is_running(pid):
 	return True
 
 
-def ensure_service(name, command, stdout_file, stderr_file, session_dir):
+def ensure_service(name, command, stdout_file, stderr_file, session_dir, extra_env={}):
 	try:
 		pid = find_service(name)
 	except ServiceNotFound:
@@ -155,10 +156,11 @@ def ensure_service(name, command, stdout_file, stderr_file, session_dir):
 		return pid
 
 	# TODO: Don't overwrite!?
+	print "Starting ", command
 	stdout = open(stdout_file, 'w')
 	stderr = open(stderr_file, 'w')
 	pid = start_service(name, command,
-		stdout.fileno(), stderr.fileno(), session_dir)
+		stdout.fileno(), stderr.fileno(), session_dir, extra_env)
 	stdout.close()
 	stderr.close()
 	return pid
@@ -176,7 +178,7 @@ def get_process_environment(pid, proc_dir):
 	with open(env_path, 'r') as env_file:
 		return env_file.read().split('\0')
 
-def _process_envs(proc_dir):
+def _process_envs(proc_dir='/proc'):
 	for pid in os.listdir(proc_dir):
 		try:
 			pid = int(pid)
@@ -216,7 +218,7 @@ def get_running_session(proc_dir='/proc'):
 
 
 
-def start_service(name, command, stdout_fd, stderr_fd, session_dir):
+def start_service(name, command, stdout_fd, stderr_fd, session_dir, extra_env={}):
 	pid = os.fork()
 	if pid != 0:
 		return pid
@@ -226,6 +228,19 @@ def start_service(name, command, stdout_fd, stderr_fd, session_dir):
 	os.dup2(stderr_fd, 2)
 	os.putenv(SERVICE_VAR, name)
 	os.putenv(BASE_DIR_VAR, session_dir)
+	for var, val in extra_env.iteritems():
+		os.putenv(var, val)
+	
 	os.setsid()
 	os.execvp(command[0], command)
 
+def running_service_pids():
+	for pid, env in _process_envs():
+		name = _get_env_var(SERVICE_VAR, env)
+		if not name: continue
+		yield name, pid
+
+
+if __name__ == '__main__':
+	for name, pid in running_service_pids():
+		print name, pid

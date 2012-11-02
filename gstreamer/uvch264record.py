@@ -15,8 +15,18 @@ UTC timestamping for global synchronization.
 """
 import sys
 import argh
+import os
+
+# This is a hack to set the window title so we can embed it later.
+# A nicer way would be probably to create a new window and provide
+# the id when xvimagesink asks for it, but I'm feeling too lazy.
+# The procname has to be set before gst is imported
+if "PROCNAME_HACK" in os.environ:
+	import procname
+	procname.setprocname(os.environ["PROCNAME_HACK"])
 
 import pygst; pygst.require("0.10")
+
 # Pygst loves to grab the argv, so give the
 # greedy bastard nothing
 args, sys.argv = sys.argv, []; import gst; sys.argv = args
@@ -110,6 +120,8 @@ gst.element_register(TimestampSource, "ts_src", 0)
 @argh.command
 def record(output_file, video_device=None, audio_device=None):
 	"""Record from uvch264 device"""
+
+		
 	pipe_str = ""
 	pipe_str = \
 		'matroskamux name=mux ! queue ! ' \
