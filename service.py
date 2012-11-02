@@ -59,8 +59,7 @@ class ServiceManager(object):
 		self.pids = {}
 		self.session_dir = session_dir
 		self.__initialize_services()
-		self.start()
-
+		
 	def __initialize_services(self):
 		for name, service in self.services.iteritems():
 			service.parametrize(
@@ -74,6 +73,7 @@ class ServiceManager(object):
 		signal.signal(signal.SIGCHLD, bury_child)
 		for name in self.services:
 			self.ensure_service(name)
+		return self
 
 	def start_service(self, name):
 		service = self.services[name]
@@ -166,6 +166,9 @@ class ServiceSpec(object):
 
 	def __getitem__(self, name):
 		return self.services[name]
+
+	def instance(self, session_dir):
+		return ServiceManager(self, session_dir)
 		
 	
 def pid_is_running(pid):

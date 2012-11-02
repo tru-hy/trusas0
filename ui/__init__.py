@@ -61,11 +61,11 @@ class SessionUi(object):
 		url = QUrl(self.base_url)
 		url.setQueryItems(args.items())
 		self.widget.load(url)
-	
+
 	def startup(self, **kwargs):
 		session_dir = get_running_session()
 		if session_dir:
-			self.manager = ServiceManager(self.spec, session_dir)
+			self.manager = self.spec.instance(session_dir).start()
 			self("index", **kwargs)
 			return
 		self.__content("start_session.html")
@@ -81,7 +81,7 @@ class SessionUi(object):
 			self("startup")
 			return
 
-		self.manager = ServiceManager(self.spec, session_dir)
+		self.manager = self.spec.instance(session_dir).start()
 		self("index")
 	
 	def index(self, **kwargs):
