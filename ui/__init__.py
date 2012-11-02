@@ -6,6 +6,7 @@ from PyQt4.QtGui import *
 import signal
 import subprocess
 import re
+import trusas0.utils; log = trusas0.utils.get_logger()
 
 class SessionUi(object):
 	"""
@@ -32,6 +33,9 @@ class SessionUi(object):
 		self.widget.loadFinished.connect(self.dispatch)
 		self.swallow = {}
 		self.embedded = {}
+		self.swallow_timer = QTimer()
+		self.swallow_timer.timeout.connect(self._swallow_windows)
+
 
 	def __content(self, template):
 		template = path.join(self.templatedir, template)
@@ -58,17 +62,6 @@ class SessionUi(object):
 		url.setQueryItems(args.items())
 		self.widget.load(url)
 	
-	"""
-	def initialize(self, status_ok):
-		self.widget.loadFinished.disconnect(self.initialize)
-		frame = self.widget.page().mainFrame()
-		self.dom = frame.documentElement()
-		self.content = self.dom.findFirst("#content")
-
-		self.widget.show()
-		self.startup()
-	"""
-
 	def startup(self, **kwargs):
 		session_dir = get_running_session()
 		if session_dir:
@@ -96,12 +89,17 @@ class SessionUi(object):
 		self.__content("main.html")
 		container = self.dom.findFirst("#embedded-widgets")
 
+		# There's probably a way to get notified
+		# by X when a new window opens, but this
+		# must suffice for now
+		self.swallow_timer.start(1000)
+
+
 		for win_name, human_name in self.swallow.iteritems():
 			container.appendInside("""
-			<div class="span6" style="border: 1px solid black;">
+			<div class="span6">
 			<h4>%(human_name)s</h4>
-			<object type="x-trusas/widget" name="%(win_name)s"
-				width="100%%" height="100%%"></object>
+			<object type="x-trusas/widget" name="%(win_name)s"></object>
 			</div>
 			"""%{'human_name': human_name, 'win_name': win_name})
 
@@ -123,7 +121,6 @@ class SessionUi(object):
 			widget = self.embed.widgets[name]
 			if widget.clientWinId() > 0:
 				continue
-
 			wid = find_x_window_id(name)
 			if not wid: continue
 			widget.embedClient(wid)
@@ -132,14 +129,7 @@ class SessionUi(object):
 	def run(self):
 		self.widget.show()
 		self("index")
-		
-		# There's probably a way to get notified
-		# by X when a new window opens, but this
-		# must suffice for now
-		swallow_timer = QTimer()
-		swallow_timer.timeout.connect(self._swallow_windows)
-		swallow_timer.start(1000)
-		
+			
 		signal.signal(signal.SIGINT, signal.SIG_DFL)
 		self.app.exec_()
 
@@ -175,12 +165,16 @@ class DialogCancelled(Exception): pass
 
 def find_x_window_id(name):
 	# Most likely not the most efficient nor nice way to do this
-	output = subprocess.check_output("xwininfo -root -tree".split())
-	matches = re.search('^ + 0x([0-9A-Fa-f]+) "%s": \(.*'%name, output, re.MULTILINE)
-	if not matches: return None
-	
-	return int(matches.groups()[0], base=16)
+	try:
+		output = subprocess.check_output(('xwininfo -name %s'%name).split())
+	except Exception, e:
+		log.warning("xwininfo failed: %s"%(str(e)))
+		return None
 
+	matches = re.search('^xwininfo: Window id: 0x([0-9A-Fa-f]+)', output, re.MULTILINE)
+	if not matches: return None
+	return int(matches.groups()[0], base=16)
+	
 def _run_dialog(command):
 	"""
 	:todo: Not probably the most beautiful approach
