@@ -3,17 +3,44 @@
 	<div class="span6">
 		<h4>Video</h4>
 		<object type="x-trusas/widget"
+				width="100%"
 				window="trusas_front_video">
 			loading
 		</object>
 	</div>
-
 	<div class="span6">
 		<h4>Location</h4>
 		<object type="x-trusas/widget"
+				width="100%"
 				window="trusas_map"
 				service="location"
-				command="tail -f %(service_out)s |%(ROOT)s/plot/location_plotter.py -w trusas_map"
+				command="tail --follow=name --retry %(service_out)s |%(ROOT)s/plot/location_plotter.py -w trusas_map"
+				>
+		</object>
+	</div>
+
+	<div class="span6">
+		<h4>Skin conductance (raw)</h4>
+		<object type="x-trusas/widget"
+				width="100%"
+				window="trusas_sc_raw"
+				service="nexus"
+				command="tail --follow=name --retry %(service_out)s |
+					%(ROOT)s/transform.py &quot;fields(d, E='sc_left', F='sc_right')&quot; |
+					%(ROOT)s/plot/signal_plotter.py -w trusas_sc_raw"
+				>
+		</object>
+	</div>
+
+	<div class="span6">
+		<h4>Acceleration</h4>
+		<object type="x-trusas/widget"
+				width="100%"
+				window="trusas_sensors_accel"
+				service="sensors"
+				command="tail --follow=name --retry %(service_out)s |
+					%(ROOT)s/transform.py &quot;fields(d, 'xforce', 'yforce', 'zforce')&quot; |
+					%(ROOT)s/plot/signal_plotter.py -w trusas_sensors_accel"
 				>
 		</object>
 	</div>

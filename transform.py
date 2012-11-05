@@ -25,6 +25,11 @@ def _call_funcs(funcs, d, header):
 			traceback.print_exc()
 	return d
 
+def fields(d, *fields, **rename):
+	d = {k: d[k] for k in fields}
+	d.update({new: d[old]
+		for (new, old) in rename.iteritems()})
+
 @argh.plain_signature
 @argh.arg('transformation', type=str, nargs='+')
 # TODO: Handle these when needed

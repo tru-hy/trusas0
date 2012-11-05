@@ -20,6 +20,8 @@ s['front_video'] =\
 s['front_video'].extra_env['PROCNAME_HACK'] = 'trusas_front_video'
 
 s['location'] = ROOT+'/android/location.py'
+s['sensors'] = ROOT+'/android/sensors.py'
+
 
 ui = SessionUi(spec=s,
 	base_dir='/home/jampekka/tmp/sessions',
