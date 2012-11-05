@@ -8,6 +8,7 @@ import signal
 import subprocess
 import re
 import trusas0.utils; log = trusas0.utils.get_logger()
+from trusas0.utils import register_shutdown
 
 class SessionUi(object):
 	"""
@@ -97,18 +98,27 @@ class SessionUi(object):
 			self.manager.shutdown()
 		finally:
 			self.app.quit()
-
+	
+	def _shutdown(self, **kwargs):
+		# My children go with me from this cruel world!
+		process_group = os.getpgrp()
+		os.killpg(process_group, signal.SIGTERM)
+		# :todo: It would be nice to wait for all of them
+		#	to really stop so we won't leave orphans,
+		#	but let's leave the task for init for now.
+		
+		self.app.quit()
 
 	def run(self):
+		register_shutdown(self._shutdown)
 		self.widget.show()
 		self("index")
 			
-		signal.signal(signal.SIGINT, signal.SIG_DFL)
 		self.app.exec_()
 
 class WidgetEmbedFactory(QWebPluginFactory):
 	# TODO: Refactor this 2:20AM-code
-	def __init__(self, ui, parent=None, poll_interval=1.0,):
+	def __init__(self, ui, parent=None, poll_interval=0.1,):
 		QWebPluginFactory.__init__(self, parent)
 		self.poll_interval = poll_interval
 		self.ui = ui
@@ -144,7 +154,12 @@ class WidgetEmbedFactory(QWebPluginFactory):
 			args['service_out'] = service.outfile
 		
 		command = param["command"]%args
-
+		
+		if find_x_window_id(window):
+			log.info("Using an existing process for command %s"%command)
+			return widget
+		
+		log.info("Launching widget command: %s"%command)
 		subprocess.Popen(command, shell=True)
 		return widget
 		
@@ -173,7 +188,8 @@ class WidgetEmbedFactory(QWebPluginFactory):
 def find_x_window_id(name):
 	# Most likely not the most efficient nor nice way to do this
 	try:
-		output = subprocess.check_output(('xwininfo -name %s'%name).split())
+		output = subprocess.check_output(('xwininfo -name %s'%name).split(),
+			stderr=open(os.devnull,"w"))
 	except Exception, e:
 		log.debug("xwininfo failed: %s"%(str(e)))
 		return None
