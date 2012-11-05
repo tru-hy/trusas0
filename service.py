@@ -145,7 +145,7 @@ class ServiceManager(object):
 		
 		for name, pid in self.pids.iteritems():
 			try:
-				os.kill(pid, signal.SIGTERM)
+				os.kill(pid, signal.SIGKILL)
 			except OSError, e:
 				log.warning(
 					"Couldn't kill service %s: %s"%(name, str(e)))

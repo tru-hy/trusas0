@@ -2,8 +2,7 @@
 
 from trusas0 import ROOT
 from trusas0.service import ServiceSpec
-from trusas0.ui import SessionUi
-from trusas0.utils import Hook, sh
+from trusas0.ui import run_ui
 import logging
 from os import path
 
@@ -23,11 +22,9 @@ s['location'] = ROOT+'/android/location.py'
 s['sensors'] = ROOT+'/android/sensors.py'
 
 
-ui = SessionUi(spec=s,
+logging.basicConfig(level=logging.DEBUG)
+run_ui(spec=s,
 	base_dir='/home/jampekka/tmp/sessions',
 	content=open(path.join(path.dirname(__file__), 'tru.html')).read()
 	)
 
-logging.basicConfig(loglevel=logging.INFO)
-ui.run()
-	
