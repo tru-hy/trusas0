@@ -1,33 +1,41 @@
 #!/usr/bin/python2
 
 """
-A simple program to transform some data values in the stream
+A simple program to do transformations for the data stream
 
 NOTE: This allows execution of arbitrary python code, so use with care!
-
-:todo: Seems very slow
 """
 import argh
 from packing import default_packer, default_unpacker
 import sys
-import logging; log = logging.getLogger(__name__)
+from trusas0.utils import get_logger; log = get_logger()
+import traceback
+import signal
 
 def _generate_function(source):
 	# There is a "nicer way" for this using types.FunctionType,
 	# but that would add about 20 lines with no real benefit
-	exec("def func(d, header): "+source)
-	return func
+	return eval("lambda d, header: "+source)
+
+def _call_funcs(funcs, d, header):
+	for func in funcs:
+		try:
+			d = func(d, header)
+		except:
+			traceback.print_exc()
+	return d
 
 @argh.plain_signature
-@argh.arg('transformations', type=str, nargs='+')
-def main(transformations):
-	funcs = map(_generate_function, transformations)
+@argh.arg('transformation', type=str, nargs='+')
+# TODO: Handle these when needed
+#@argh.arg('-n', '--nonlambda', type=str, nargs='+')
+def main(transformation):
+	funcs = map(_generate_function, transformation)
 	
 	input = default_unpacker()
 	output = default_packer()
 	for header, d in input:
-		for func in funcs:
-			d = func(d, header)
+		d = _call_funcs(funcs, d, header)
 		output.send(d, header=header)
 	
 if __name__ == '__main__':
