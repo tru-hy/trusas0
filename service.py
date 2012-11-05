@@ -107,16 +107,23 @@ class ServiceManager(object):
 		self.pids[name] = pid
 	
 	def is_running(self, name):
+		if name not in self.services:
+			raise ServiceException("Service '%s' not registered."%name)
+		
 		try:
 			pid = self.pids[name]
 		except KeyError:
-			raise ServiceException("Service '%s' not registered."%name)
+			return False
 
 		return pid_is_running(pid)
 
 	def dead_services(self):
 		return [name for name in self.services
 			if not self.is_running(name)]
+
+	def _dangling_pids(self):
+		return [name for name, pid in self.pids.iteritems()
+						if not pid_is_running(pid)]
 	
 	def shutdown(self, timeout=10.0, poll_interval=0.1):
 		"""
@@ -126,7 +133,7 @@ class ServiceManager(object):
 			os.kill(pid, signal.SIGTERM)
 		
 		for i in range(int(timeout/poll_interval)):
-			for dead in self.dead_services():
+			for dead in self._dangling_pids():
 				del self.pids[dead]
 			if len(self.pids) == 0:
 				return
