@@ -10,15 +10,12 @@ import argh
 
 
 class SignalPlot(QwtPlot):
-	def __init__(self, window_size=10):
-		QwtPlot.__init__(self)
-		self.x = np.empty(0)
-		self.y = np.empty(0)
-		self.window_size = window_size
-		self.curve = QwtPlotCurve()
-		self.curve.attach(self)
+	def __init__(self, parent=None, x_visible=10):
+		QwtPlot.__init__(self, parent)
+		self.x_visible = x_visible
+		self.curves = {}
 
-	def add_datum(self, x, y):
+	def add_datum(self, x, fields):
 		"""Add a measurement to the plot
 		
 		Adds the values x and y to their respective axes.
@@ -33,8 +30,16 @@ class SignalPlot(QwtPlot):
 			all the stuff every time
 
 		"""
-		self.x = np.append(self.x, x)
-		self.y = np.append(self.y, y)
+	
+		for name, value in fields.iteritems():
+			if name not in self.curves:
+				curve = QwtPlotCurve()
+				curve.attach(self)
+				self.curves[name] = [curve, np.empty(0), np.empty(0)]
+			
+			stuff = self.curves[name]
+			stuff[1] = np.append(stuff[1], x)
+			stuff[2] = np.append(stuff[2], value)
 
 		
 	def refresh(self):
@@ -42,85 +47,55 @@ class SignalPlot(QwtPlot):
 		
 		Redraws the plot with the current data so that the last self.window_size
 		of x-axis is visible. Autoscales the plot to fit the whole y-axis.
-	
-		:todo: The searchsorted doesn't really have to be done every time. Also
-			Qwt may be sane enough to have a "autoscale visible" -option
+		
+		:todo: We can cache the visible stuff for "searchsorted"
 		:todo: Allow interactive changing of the window size and navigating over time
 		:todo: Qwt seems to allow some kind of incremental rendering for better performance
 		"""
-		if len(self.x) == 0: return
-		
-		self.curve.setData(self.x, self.y)
-		start = self.x[-1]-self.window_size
-		self.setAxisScale(self.xBottom, start, self.x[-1])
-		
-		first = np.searchsorted(self.x, start)
-		visible = self.y[first:]
-		self.setAxisScale(self.yLeft, np.min(visible), np.max(visible))
+		if len(self.curves) == 0: return
 
+		max_x = None
+		for curve, x, y in self.curves.itervalues():
+			max_x = max(max_x, np.max(x))
+
+		start_x = max_x - self.x_visible
+
+		for curve, x, y in self.curves.itervalues():
+			start_i = np.searchsorted(x, start_x)
+			curve.setData(x[start_i:], y[start_i:])
+		
+		self.setAxisScale(self.xBottom, start_x, max_x)
 		self.replot()
 
-class PlotManager(object):
-	def __init__(self, base_time=None,
-			on_add=lambda name, plot: None):
-		if base_time is None:
-			base_time = time.time()
-		self.base_time = base_time
-	
-		self.plots = {}
-		self.on_add = on_add
-		
-		
-	def add_data(self, header, data):
-		ts = header['ts'] - self.base_time
-		for col in data:
-			if not col in self.plots:
-				plot = SignalPlot()
-				self.plots[col] = plot
-				self.on_add(col, plot)
-				
-			plot = self.plots[col]
-			plot.add_datum(ts, data[col])
-
-	def refresh(self):
-		for plot in self.plots.values():
-			if plot.isVisible():
-				plot.refresh()
-		
-@argh.plain_signature
-@argh.arg('-s', '--show_by_default', type=str, nargs='+')
-def main(show_by_default=[]):
-	from trusas0.packing import AsyncIter, ReprUnpack
+@argh.command
+def main(window_title=None):
+	from trusas0.packing import default_unpacker, AsyncIter
 
 	import sys
 	import signal
 	signal.signal(signal.SIGINT, signal.SIG_DFL)
 	app = QApplication([])
-	input = AsyncIter(ReprUnpack(sys.stdin))
-	#plot = SignalPlot(window_size=30)
+	input = AsyncIter(default_unpacker())
+	window = QMainWindow()
+	plot = SignalPlot(parent=window)
+	window.setCentralWidget(plot)
+	if window_title:
+		window.setWindowTitle(window_title)
 
-	main = QMainWindow()
-	def new_plot(name, plot):
-		dockwidget = QDockWidget(name, main)
-		dockwidget.setWidget(plot)
-		if name not in show_by_default:
-			dockwidget.setVisible(False)
-		
-		main.addDockWidget(Qt.LeftDockWidgetArea, dockwidget)
-	
-	manager = PlotManager(on_add=new_plot)
-	
+	# TODO: Take from argument/environment
+	base_ts = time.time()
+
 	def consume():
 		for header, obj in input:
-			manager.add_data(header, obj)
-		
-		manager.refresh()
+			ts = header['ts']-base_ts
+			plot.add_datum(ts, obj)
+		plot.refresh()
 
 	update_rate = 30
 	timer = QTimer(); timer.timeout.connect(consume)
 	timer.start(1/float(update_rate)*1000)
 	
-	main.show()
+	window.show()
 	app.exec_()
 
 if __name__ == '__main__':
