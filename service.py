@@ -129,8 +129,12 @@ class ServiceManager(object):
 		"""
 		:todo: Do this asynchronously
 		"""
-		for pid in self.pids.values():
-			os.kill(pid, signal.SIGTERM)
+		for name, pid in self.pids.iteritems():
+			try:
+				os.kill(pid, signal.SIGTERM)
+			except OSError, e:
+				log.warning(
+					"Couldn't tell service %s to stop: %s"%(name, str(e)))
 		
 		for i in range(int(timeout/poll_interval)):
 			for dead in self._dangling_pids():
@@ -139,8 +143,12 @@ class ServiceManager(object):
 				return
 			time.sleep(poll_interval)
 		
-		for pid in self.pids.values():
-			os.kill(pid, signal.SIGTERM)
+		for name, pid in self.pids.iteritems():
+			try:
+				os.kill(pid, signal.SIGTERM)
+			except OSError, e:
+				log.warning(
+					"Couldn't kill service %s: %s"%(name, str(e)))
 
 		raise ServiceException("Following services had to be forced to shut down: %s"%str(self.pids))
 		
