@@ -41,7 +41,12 @@ class ReprUnpack(object):
 	def __iter__(self): return self
 
 	def next(self):
+		# :todo: We could use the iterator interface (eg self.input.next())
+		# but for some reason python does horrible buffering with this,
+		# so it's sadly a lot less general readline for now
 		data = self.input.readline()
+		if data is None:
+			raise StopIteration
 		return literal_eval(data)
 
 from Queue import Queue, Empty
