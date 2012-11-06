@@ -10,6 +10,11 @@ import re
 import trusas0.utils; log = trusas0.utils.get_logger()
 from trusas0.utils import register_shutdown
 
+# TODO: Figure out suitable place for this. It really isn't here
+class LogWatcher(object):
+	def __init__(self, filepath):
+		self.filepath = filepath
+
 class StaticWebPage(QWebPage):
 	def __init__(self, controller, template, *args, **kwargs):
 		QWebPage.__init__(self, *args, **kwargs)

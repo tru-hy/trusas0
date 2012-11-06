@@ -1,42 +1,13 @@
 """A random collection of utilities and hacks around Python's annoyances"""
-import logging
-import json
 import inspect
 import sys
 import signal
 import atexit
 import traceback
+import time
+import re
 
-def get_logger():
-	"""
-	Get's a logger with a saner name for standalone scripts,
-	which get their sys.argv[0] as the name. This is nice if you have
-	a log dump from multiple simultaneous processes.
-	
-	>>> orig_name = __name__; __name__ = '__main__'
-	>>> get_logger().name == sys.argv[0]
-	True
-	>>> __name__ = orig_name
-	
-	Otherwise works as logging.getLogger(__name__)
-	
-	>>> orig_name = __name__; __name__ = 'some_module'
-	>>> get_logger().name
-	'some_module'
-	>>> __name__ = orig_name
-	
-	:todo: Maybe digging out the would-be module name would be
-		nicer as then the behavior would be consistent regardless
-		of how the module is called.
-
-	"""
-	frame = inspect.stack()[1][0]
-	name = frame.f_globals["__name__"]
-	if name == '__main__':
-		name = sys.argv[0]
-	return logging.getLogger(name)
-
-log = get_logger() # Eat the own poison
+from logutils import get_logger
 
 class register_shutdown:
 	"""

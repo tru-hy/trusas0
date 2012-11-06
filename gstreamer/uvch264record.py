@@ -12,6 +12,15 @@ UTC timestamping for global synchronization.
 :todo: v4l2src also allows getting the h264 stream, but it doesn't seem to work with
 	vdpauh264dec due to some profile problems, so we are for now stuck with
 	uvch264_src and thus Gstreamer 0.10. A sad cascade of hacks and workarounds.
+	Update: Gstreamer 1.0's v4l2src won't output h264 at all :(
+:todo: See if there's a nice way to separate the recording from the output, as
+	the current implementation is against the trusas-principle of separation
+	between recording and visualization. A perhaps feasible solution would
+	be to use v4l2loopback or somehow convice v4l2 to get the preview-stream
+	from an another process. The most principled method would be to stream
+	from the output file, but this will probably cause problems, at least
+	because the matroska mux/demux-pair isn't very friendly for playing
+	unfinished files.
 """
 import sys
 import argh

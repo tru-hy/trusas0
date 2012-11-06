@@ -22,7 +22,6 @@ s['location'] = ROOT+'/android/location.py'
 s['sensors'] = ROOT+'/android/sensors.py'
 
 
-logging.basicConfig(level=logging.DEBUG)
 run_ui(spec=s,
 	base_dir='/home/jampekka/tmp/sessions',
 	content=open(path.join(path.dirname(__file__), 'tru.html')).read()
