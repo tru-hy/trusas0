@@ -44,7 +44,7 @@ log_handler.setFormatter(log_formatter)
 
 def configure_logger():
 	if log_handler in logging.root.handlers: return
-	logging.root.handlers.append(log_handler)
+	logging.root.addHandler(log_handler)
 	logging.root.setLevel(logging.DEBUG)
 	# The exception hook works in mysterious ways
 	def excepthook(*exc_info):

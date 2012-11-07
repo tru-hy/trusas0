@@ -8,12 +8,10 @@ import signal
 import subprocess
 import re
 import trusas0.utils; log = trusas0.utils.get_logger()
-from trusas0.utils import register_shutdown
+from trusas0.utils.logutils import LogWatcher
+from trusas0.utils import register_shutdown, Hook
+import logging
 
-# TODO: Figure out suitable place for this. It really isn't here
-class LogWatcher(object):
-	def __init__(self, filepath):
-		self.filepath = filepath
 
 class StaticWebPage(QWebPage):
 	def __init__(self, controller, template, *args, **kwargs):
@@ -171,24 +169,39 @@ class SessionUi(WebUi):
 		process_group = os.getpgrp()
 		# But I'll go last!
 		orig_handler = signal.signal(signal.SIGTERM, lambda *args: None)
-		os.killpg(process_group, signal.SIGTERM)
-		orig_handler = signal.signal(signal.SIGTERM, orig_handler)
+		try:
+			os.killpg(process_group, signal.SIGTERM)
+		finally:
+			signal.signal(signal.SIGTERM, orig_handler)
 		# :todo: It would be nice to wait for all of them
 		#	to really stop so we won't leave orphans,
 		#	but let's leave the task for init for now.
 
 def run_ui(spec, base_dir, content):
 	app = QApplication([])
+
+	
+	def setup_my_logger(session_dir):
+		formatter = type(trusas0.utils.logutils.log_formatter)()
+		handler = logging.FileHandler(path.join(session_dir, "_ui.log"))
+		handler.setFormatter(formatter)
+		logging.root.addHandler(handler)
+			
+	
+	spec.instance = Hook(spec.instance)
+	spec.instance.before.connect(setup_my_logger)
 	ui = SessionUi(spec, base_dir, content)
 	# Apparently QApplication hates to be out-scoped (leading
 	# to a segfault), so let's keep it here.
+	# :todo: Doesn't fix it
 	ui._apphack = app
 
 	def ui_shutdown(**kwargs):
 		ui._shutdown()
 		app.exit()
 	register_shutdown(ui_shutdown)
-	ui._widget.showFullScreen()
+	#ui._widget.showFullScreen()
+	ui._widget.show()
 	app.exec_()
 	
 
@@ -294,7 +307,8 @@ def find_x_window_id(name):
 		output = subprocess.check_output(('xwininfo -name %s'%name).split(),
 			stderr=open(os.devnull,"w"))
 	except Exception, e:
-		log.debug("xwininfo failed: %s"%(str(e)))
+		# Too much spam for even debug log
+		#log.debug("xwininfo failed: %s"%(str(e)))
 		return None
 
 	matches = re.search('^xwininfo: Window id: 0x([0-9A-Fa-f]+)', output, re.MULTILINE)

@@ -8,6 +8,7 @@ import time
 import re
 
 from logutils import get_logger
+log = get_logger()
 
 class register_shutdown:
 	"""
