@@ -7,6 +7,7 @@ import signal
 import shlex
 import errno
 import trusas0.utils
+import itertools
 log = trusas0.utils.get_logger()
 
 SERVICE_VAR="TRUSAS_SERVICE"
@@ -57,6 +58,7 @@ class ServiceManager(object):
 		self.spec = spec
 		self.services = spec.services
 		self.pids = {}
+		self.filelocks = []
 		self.session_dir = session_dir
 		self.__initialize_services()
 		
@@ -80,8 +82,27 @@ class ServiceManager(object):
 
 		log.info("Starting service %s with command '%s'"%(
 			name, " ".join(service.command)))
+		
+		
+		# Move old files out of the way. Shouldn't cause too much
+		# problems, as the "stream clients" should follow path and
+		# nobody else should be writing or trying to create the file,
+		# so we don't even try to be atomic here. Even the file existing
+		# is a corner case itself.
+		if path.exists(service.outfile) and path.getsize(service.outfile) > 0:
+			prevpath = service.outfile
+			for retry in itertools.count(1):
+				if not path.exists(prevpath):
+					os.rename(service.outfile, prevpath)
+					break
+			
+				prevpath = service.outfile + ".%i"%retry
+			
+			log.warning("Output file for this service already exists, "\
+				"moving the old file to '%s' instead."%prevpath)
+		
 		stdout = open(service.outfile, 'w')
-		stderr = open(service.errfile, 'w')
+		stderr = open(service.errfile, 'a')
 
 		pid = start_service(name, service.command,
 			stdout.fileno(), stderr.fileno(), self.session_dir,
@@ -163,12 +184,10 @@ class ServiceSpec(object):
 	def add(self, name, command, outfile=None, errfile=None):
 		if name in self.services:
 			raise ServiceException("Service '%s' already registered."%name)
-		
-		
 		if outfile is None:
-			outfile = FILE_TEMPLATE + ".out"
+			outfile = FILE_TEMPLATE + ".data"
 		if errfile is None:
-			errfile = FILE_TEMPLATE + ".err"
+			errfile = FILE_TEMPLATE + ".log"
 		
 		if isinstance(command, basestring):
 			command = shlex.split(command)
@@ -260,6 +279,9 @@ def get_running_session(proc_dir='/proc'):
 
 
 def start_service(name, command, stdout_fd, stderr_fd, session_dir, extra_env={}):
+	# TODO! CRITICAL! It seems that sometimes the services die with the parent!
+	# (may be only the gstreamer thingie that gets an error from xvimagesink, but investigate)
+	# Probably best fix would be to use some readily debugged daemonizing library
 	pid = os.fork()
 	if pid != 0:
 		return pid
