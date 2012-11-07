@@ -114,11 +114,12 @@ class PollingFileWatcher(object):
 	There's a python module for inotify which would be definitely
 	nicer. 
 	"""
-	def __init__(self, poll_interval=0.1):
+	def __init__(self, poll_interval=0.1, only_new=False):
 		self._paths = []
 		self._files = []
 		self._buffers = {}
 		self.poll_interval = poll_interval
+		self.only_new = only_new
 
 	def add_path(self, path):
 		if os.path.isdir(path):
@@ -135,9 +136,31 @@ class PollingFileWatcher(object):
 		"""
 		log.exception("Watching file %s failed."%path)
 
+	def __seek_to_last_line(self, f):
+		f.seek(0, 2)
+		if f.tell() == 0:
+			return # An empty file
+		# Using lowlevel IO to make sure we play with single bytes
+		fd = f.fileno()
+		
+		#
+		os.lseek(fd, -1, 2) # Go to the last byte
+		char = None
+		# Here goes the delimiter portability, well, most stuff
+		# won't work on non-unix (or even non-Linux), so doing
+		# this the right way doesn't really pay off.
+		while f.tell() > 0:
+			char = os.read(fd, 1)
+			if char == '\n':
+				return # We found our place
+			os.seek(-2, 1) # Seek to one before
+		 
+
 	def __open_file(self, path):
 		try:
 			fobj = open(path, 'r')
+			if self.only_new:
+				self.__seek_to_last_line(fobj)
 			self._files.append(fobj)
 			self._buffers[path] = StringIO()
 		except IOError, e:
@@ -174,6 +197,23 @@ class PollingFileWatcher(object):
 		except:
 			self.on_exception(path, sys.exc_info())
 
+	def _fill_buffers(self, poll_interval):
+		# Check if there are files to be watched
+		self.__probe_created_files()
+		ready, ign, ign = select.select(
+				self._files, [], [],
+				poll_interval)
+		
+		for f in ready:
+			self.__read_to_buf(f)
+
+	def nonblock_iter(self):
+		self._fill_buffers(poll_interval=0.0)
+		for path, buf in self._buffers.iteritems():
+			line = _stringio_getline(buf)
+			if line is not None:
+				yield path, line
+				
 	def next(self):
 		while True:
 			# First return any data we may have in the
@@ -183,17 +223,11 @@ class PollingFileWatcher(object):
 				if line is not None:
 					return path, line
 			
-			# Check if there's files to be watched
-			self.__probe_created_files()
 			# The sleep is due to not-so-suiteble for us
 			# behavior of select, see __read_to_buf.
-			time.sleep(self.poll_interval) 
-			ready, ign, ign = select.select(
-					self._files, [], [],
-					self.poll_interval)
-			
-			for f in ready:
-				self.__read_to_buf(f)
+			time.sleep(self.poll_interval)
+			self._fill_buffers(self.poll_interval) 
+
 				
 
 # TODO: This may be replaced by a nicer inotify-implementation
@@ -236,12 +270,22 @@ class LogWatcher(FileWatcher):
 	def __init__(self, formatter=log_formatter, **kwargs):
 		super(LogWatcher, self).__init__(**kwargs)
 		self.formatter = formatter
-	
+
+	def nonblock_iter(self):
+		for path, line in FileWatcher.nonblock_iter(self):
+			try:
+				record = self.formatter.parse(line)
+			except:
+				print line
+				#self.on_exception(path, sys.exc_info())
+				continue
+			yield path, record
+
 	def next(self):
 		path, line = FileWatcher.next(self)
 		while True:
 			try:
-				return path, self.formatter.parse(line)
+				return (path, self.formatter.parse(line))
 			except:
 				self.on_exception(path, sys.exc_info())
 

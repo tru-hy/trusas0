@@ -10,6 +10,9 @@ import trusas0.utils
 import itertools
 log = trusas0.utils.get_logger()
 
+# TODO: Currently allows only one session to run at the same time
+#	could be easily fixed by adding some kind of session id to
+#	the environment.
 SERVICE_VAR="TRUSAS_SERVICE"
 BASE_DIR_VAR="TRUSAS_DIR"
 
@@ -142,6 +145,12 @@ class ServiceManager(object):
 		return [name for name in self.services
 			if not self.is_running(name)]
 
+	def newly_dead_services(self):
+		deads = self._dangling_pids()
+		for dead in deads:	
+			del self.pids[dead]
+		return deads
+
 	def _dangling_pids(self):
 		return [name for name, pid in self.pids.iteritems()
 						if not pid_is_running(pid)]
@@ -173,7 +182,6 @@ class ServiceManager(object):
 
 		raise ServiceException("Following services had to be forced to shut down: %s"%str(self.pids))
 		
-			
 
 FILE_TEMPLATE="%(session_dir)s/%(name)s"
 class ServiceSpec(object):

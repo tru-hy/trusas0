@@ -195,9 +195,9 @@ def record(output_file="/dev/stdout", video_device=None, audio_device=None):
 	#print "\n".join(dir(ts_src))
 
 	log_level_map = {
-		gst.MESSAGE_EOS: log.info,
-		gst.MESSAGE_INFO: log.info,
-		gst.MESSAGE_STATE_CHANGED: log.info,
+		#gst.MESSAGE_EOS: log.info,
+		#gst.MESSAGE_INFO: log.info,
+		#gst.MESSAGE_STATE_CHANGED: log.info,
 		gst.MESSAGE_WARNING: log.warning,
 		gst.MESSAGE_ERROR: log.error,
 		}
@@ -206,7 +206,8 @@ def record(output_file="/dev/stdout", video_device=None, audio_device=None):
 	def on_message(bus, message):
 		t = message.type
 		log_func = log_level_map.get(t,
-			lambda obj: log.debug("Unknown gstreamer message: %s"%obj))
+			#lambda obj: log.debug("Unknown gstreamer message: %s"%obj))
+			lambda obj: None) # Gstreamer spams like crazy
 		log_func(message)
 		
 	def shutdown():
