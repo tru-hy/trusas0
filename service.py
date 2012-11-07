@@ -285,7 +285,7 @@ def get_running_session(proc_dir='/proc'):
 	return _get_env_var(BASE_DIR_VAR, env)
 
 
-
+import pty
 def start_service(name, command, stdout_fd, stderr_fd, session_dir, extra_env={}):
 	# TODO! CRITICAL! It seems that sometimes the services die with the parent!
 	# (may be only the gstreamer thingie that gets an error from xvimagesink, but investigate)
@@ -294,7 +294,12 @@ def start_service(name, command, stdout_fd, stderr_fd, session_dir, extra_env={}
 	if pid != 0:
 		return pid
 	
-	os.close(0)
+	# Seems that some insane libraries seem to need
+	# a terminal, so let's give them one
+	# TODO: No idea if this even worsens the daemon-dying
+	#	problem
+	master, slave = pty.openpty()
+	os.dup2(slave, 0)
 	os.dup2(stdout_fd, 1)
 	os.dup2(stderr_fd, 2)
 	os.putenv(SERVICE_VAR, name)

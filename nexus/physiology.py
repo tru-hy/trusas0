@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 
-from trusas0.packing import ReprPack
+from trusas0.utils import get_logger
+log = get_logger()
+from trusas0.packing import default_packer
 import pynexus
 import argh
 import sys
+
 
 def record(nexus_address, output):
 	dev = pynexus.Nexus(nexus_address)
@@ -12,7 +15,7 @@ def record(nexus_address, output):
 
 @argh.command
 def main(nexus_address):
-	record(nexus_address, ReprPack(sys.stdout))
+	record(nexus_address, default_packer())
 
 if __name__ == '__main__':
 	parser = argh.ArghParser()

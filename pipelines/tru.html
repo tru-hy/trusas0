@@ -25,7 +25,7 @@
 				window="trusas_sc_raw"
 				service="nexus"
 				command="tail --follow=name --retry %(service_out)s |
-					%(ROOT)s/transform.py &quot;fields(d, E='sc_left', F='sc_right')&quot; |
+					%(ROOT)s/transform.py &quot;fields(d, sc_left='E')&quot; |
 					%(ROOT)s/plot/signal_plotter.py -w trusas_sc_raw"
 				>
 		</object>

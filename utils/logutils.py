@@ -165,6 +165,7 @@ class PollingFileWatcher(object):
 			self._buffers[path] = StringIO()
 		except IOError, e:
 			pass
+			# TODO: Something fishy was going on, lets just trust..
 			#if e.errno != errno.ENOENT:
 			#	raise
 			# We'll watch if this gets created
@@ -276,8 +277,7 @@ class LogWatcher(FileWatcher):
 			try:
 				record = self.formatter.parse(line)
 			except:
-				print line
-				#self.on_exception(path, sys.exc_info())
+				log.info("Unknown log format: %s"%line)
 				continue
 			yield path, record
 
