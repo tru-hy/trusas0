@@ -13,9 +13,10 @@ VIDEO_DEVICE = "/dev/video0"
 
 s = ServiceSpec()
 
-#s['nexus'] = ROOT+'/nexus/physiology.py %s'%NEXUS_ADDR	
-s['front_video'] =\
-	 ROOT+'/gstreamer/uvch264record.py -v "%s" "%%(session_dir)s/%%(name)s.mkv"'%VIDEO_DEVICE
+s['nexus'] = ROOT+'/nexus/physiology.py %s'%NEXUS_ADDR	
+s.add(name='front_video',
+	command=ROOT+'/gstreamer/uvch264record.py -v "%s"%VIDEO_DEVICE',
+	outfile="%(session_dir)s/%(name)s.mkv")
 s['front_video'].extra_env['PROCNAME_HACK'] = 'trusas_front_video'
 
 s['location'] = ROOT+'/android/location.py'

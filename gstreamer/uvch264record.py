@@ -50,6 +50,12 @@ def ts_to_srt(stamp):
 	return str(t)
 
 class TimestampSource(gst.Element):
+	"""
+	TODO: The architecture is ugly like this because
+		a lot of confusion about gstreamer's event
+		propagation. Using the request templates isn't
+		probably necessary as tee would do the same trick.
+	"""
 	_sinkpadtemplate = gst.PadTemplate("sink",
 					gst.PAD_SINK,
 					gst.PAD_ALWAYS,
@@ -127,8 +133,18 @@ gobject.type_register(TimestampSource)
 gst.element_register(TimestampSource, "ts_src", 0)
 
 @argh.command
-def record(output_file, video_device=None, audio_device=None):
-	"""Record from uvch264 device"""
+def record(output_file="/dev/stdout", video_device=None, audio_device=None):
+	"""
+	Record from uvch264 device
+
+	TODO: /dev/stdout may not be the most portable way for outputting
+		to stdout
+
+	TODO: There are some overlapping timestamps on playback on many players,
+		which is a bit annoying. It may be because the ts_src is hooked to
+		the decoded stuff, which probably also increases the latency/jitter
+		of the timestamps? Shouldn't be too hard to fix.
+	"""
 
 		
 	pipe_str = ""
