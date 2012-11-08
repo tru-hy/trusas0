@@ -4,6 +4,7 @@
 		<h4>Video</h4>
 		<object type="x-trusas/widget"
 				width="100%"
+				height="300"
 				window="trusas_front_video">
 		</object>
 	</div>
@@ -11,6 +12,7 @@
 		<h6>Location</h6>
 		<object type="x-trusas/widget"
 				width="100%"
+				height="300"
 				window="trusas_map"
 				service="location"
 				command="tail --follow=name --retry %(service_out)s |%(ROOT)s/plot/location_plotter.py -w trusas_map"
@@ -25,7 +27,7 @@
 				window="trusas_sc_raw"
 				service="nexus"
 				command="tail --follow=name --retry %(service_out)s |
-					%(ROOT)s/transform.py &quot;fields(d, sc_left='E')&quot; |
+					%(ROOT)s/transform.py &quot;fields(d, sc_left='E')&quot; &quot;apply(d, sc_left=lambda x: 1.0/x)&quot; |
 					%(ROOT)s/plot/signal_plotter.py -w trusas_sc_raw"
 				>
 		</object>
