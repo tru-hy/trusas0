@@ -5,6 +5,8 @@ A simple program to do transformations for the data stream
 
 NOTE: This allows execution of arbitrary python code, so use with care!
 """
+
+from __future__ import division
 import argh
 from packing import default_packer, default_unpacker
 import sys
@@ -21,7 +23,7 @@ def _generate_function(source):
 def _call_funcs(funcs, d, header):
 	for func in funcs:
 		try:
-			new_d = func(d, header)
+			d = func(d, header)
 		except:
 			traceback.print_exc()
 	return d
@@ -43,7 +45,7 @@ def fields(d, *fields, **rename):
 # TODO: Handle these when needed
 #@argh.arg('-n', '--nonlambda', type=str, nargs='+')
 def main(transformation):
-	funcs = map(_generate_function, transformation)
+	funcs = list(map(_generate_function, transformation))
 	
 	input = default_unpacker()
 	output = default_packer()
