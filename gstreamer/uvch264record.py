@@ -3,6 +3,10 @@
 An application to record from UVC cameras supporting h264 encoding with
 UTC timestamping for global synchronization.
 
+:todo: This could be a lot more generic, just try to use hardware encoding if available
+	also an almost ideal method separate visualization from recording would be to
+	do a (local) UDP/RDP (perhaps multicast) copy of the stream. This would simplify
+	and robustize things here a lot.
 :todo: The uvch264_src crashes when using the viewfinder. The current workaround
 	is not to take the viewfinder data at all, but to decode the h264 stream
 	on the fly (with VDPAU not to kill the whole system).

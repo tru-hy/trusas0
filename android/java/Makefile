@@ -3,6 +3,9 @@
 # want to compile this. Also assumes the needed tools
 # are in PATH
 ANDROID_JAR=/opt/android-sdk/platforms/android-10/android.jar
+GSON_JAR=lib/gson-2.2.2.jar
+
+SENSOR_PORT=27545
 
 #TrusasSensorDump.apk : 
 #	aapt package -v -f -m -S res -J src -M AndroidManifest.xml -I /opt/android-sdk/platforms/android-15/android.jar
@@ -14,24 +17,31 @@ ANDROID_JAR=/opt/android-sdk/platforms/android-10/android.jar
 TrusasSensorDump.apk : TrusasSensorDump-unsigned.apk Insecure.keystore
 	jarsigner -keystore Insecure.keystore -storepass dontcare -keypass dontcare -signedjar $@ $< dontcare
 
-TrusasSensorDump-unsigned.apk : build/classes.dex AndroidManifest.xml
-	aapt package -f -M AndroidManifest.xml -I $(ANDROID_JAR) -F $@ build 
+TrusasSensorDump-unsigned.apk : bin/classes.dex AndroidManifest.xml
+	aapt package -f -M AndroidManifest.xml -I $(ANDROID_JAR) -F $@ bin
 
-build/classes.dex : TrusasSensorDump.class
-	dx --dex --no-strict --output=$@ $^
+bin/classes.dex : build/independent/trusas/TrusasSensorDump.class
+	dx --dex --output=$@ build lib
 
 Insecure.keystore : Insecure.keystore
 	keytool -genkeypair -storepass dontcare -keypass dontcare -dname "O=dontcare" -keystore Insecure.keystore -alias dontcare -validity 10000
 
-TrusasSensorDump.class : TrusasSensorDump.java
-	javac -target 1.6 -cp $(ANDROID_JAR) $^
+build/independent/trusas/TrusasSensorDump.class : TrusasSensorDump.java
+	javac -target 1.6 -d build -cp $(ANDROID_JAR):$(GSON_JAR) $^
 
 
 .PHONY: install
 install : TrusasSensorDump.apk
 	adb install -r $^
 
-.PHONY: test
-test : install
+.PHONY: start
+start: install
 	adb shell am startservice -a independent.trusas.TrusasSensorDump
-	adb shell am startservice -a independent.trusas.TrusasSensorDump.STOP
+
+.PHONY: test
+test : start
+	adb forward tcp:$(SENSOR_PORT) tcp:$(SENSOR_PORT)
+	sleep 1
+	nc localhost $(SENSOR_PORT)
+
+

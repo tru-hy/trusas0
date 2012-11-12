@@ -1,51 +1,107 @@
 #!/usr/bin/env python
 
-"""
-A daemon to read Android sensors via SL4A
-"""
-import logging; log = logging.getLogger(__name__)
-from trusas0.packing import ReprPack
+from trusas0.utils import sh, relative, get_logger
+#log = get_logger()
+from trusas0.packing import default_packer
 import sys
-from proxy import start_script_proxy
+import subprocess
+from os import path
+import socket
+from StringIO import StringIO
+import time
+from itertools import chain
+import json
 
-# Start the SL4A server
+SENSOR_PORT = 27545
+ADB = "adb"
+SERVER_APK = relative("java/TrusasSensorDump.apk")
 
-def read_events(proxy, output):
-	"""Read the sensors until the end of the world which sends an interrupt"""
+class SocketLineReader(object):
+	def __init__(self, con, bufsize=4096):
+		self.con = con
+		# Would have used StringIO, but it does quite weird
+		# stuff having buflist and buf and messing around with
+		# those, so I don't trust it
+		self.buflist = []
+		self.bufsize = bufsize
+	
+	def has_eof(self):
+		try:
+			line = self.next()
+		except StopIteration:
+			return True
 
-	while True:
-		# This seems to be required for the event to be removed from	
-		# the queue. There is the eventWaitFor, but I can't find a way
-		# to remove the fetched event
-		# :todo: Verify that this doesn't mess with other processes
-		event = proxy.eventWait()
-		result = event.result
-		output.send(result['data'])
+		#self.unread(line)
+		return False
+
+	def unread(self, data):
+		self.buflist.insert(0, data.strip()+"\n")
+	
+	def next_line(self):
+		# TODO: Ugly copypaste from logutils.py
+		line_delim = '\n' # TODO: There may be a more portable way for this
+		buflist = self.buflist
+		for i, buf in enumerate(buflist):
+			if line_delim in buf:
+				break
+		else:
+			return None
+
+		last, not_ours = buflist[i].split(line_delim, 1)
+		line = "".join(chain(buflist[:i], [last]))
+		self.buflist = [not_ours] + buflist[i+1:]
+		return line
+
+	def __iter__(self): return self
+
+	def next(self):
+		while True:
+			line = self.next_line()
+			if line is not None:
+				return line
+			
+			data = self.con.recv(self.bufsize)
+			if data == '':
+				# NOTE: There may still be data (without a newline)
+				#	in the buffer,
+				#	but the caller is probably only
+				#	interested in full lines. If not, they
+				#	can dig the remains from buf. Not gonna
+				#	set up an extra flag just for this.
+				raise StopIteration
+			self.buflist.append(data)
 
 
-SENSOR_DELAY=0.01 # Minimum sensor delay in seconds
-def main(sensor_delay=SENSOR_DELAY):
-
-	proxy = start_script_proxy()
-	log.info("SL5A server connected")
-
-	# Start the sensors
-	proxy.startSensingTimed(1, # All sensors
-		int(sensor_delay*1000))
-
-	output = ReprPack(sys.stdout)
-	# :todo: If we can't clean up properly in every situation, the processes keep on
-	# 	looping in the remote device and will bring it down at some point.
-	#	A nicer way would be to have a separate server process for every instance
-	#	and make sure it dies when we exit.
-	try:
-		read_events(proxy, output)
-	except KeyboardInterrupt:
-		pass
-	finally:
-		# :todo: We can't stop the SL4A server as it may be used by
-		#	other processes
-		proxy.stopSensing()
+def main(retries=10, retry_delay=0.5):
+	adb = lambda cmd, ADB=ADB: sh("%s %s"%(ADB, cmd))
+	adb("forward tcp:%i tcp:%i"%(SENSOR_PORT, SENSOR_PORT))
+	adb("install %s"%SERVER_APK)
+	adb("shell am startservice -a independent.trusas.TrusasSensorDump")
+	
+	for retry in range(retries):
+		try:
+			con = socket.create_connection(
+				("127.0.0.1", SENSOR_PORT),
+				timeout=retry_delay)
+			con.setblocking(1) # Just in case
+			reader = SocketLineReader(con)
+			# Seems to be the only way to see if the
+			# socket is still (or in this case has ever really been)
+			# connected.
+			if not reader.has_eof():
+				break
+			
+		except socket.error:
+			pass
+		
+		time.sleep(retry_delay)
+	else:
+		raise IOError("Unable to connect to trusas sensor dump.")
+	
+	packer = default_packer()
+	for line in reader:
+		event = json.loads(line)
+		packer.send(event)
 
 if __name__ == '__main__':
 	main()

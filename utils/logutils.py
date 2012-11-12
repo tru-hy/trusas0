@@ -37,13 +37,26 @@ class GmtJsonFormatter(logging.Formatter):
 	def parse(self, line):
 		return json.loads(line)
 
+class DebuggableStreamHandler(logging.StreamHandler):
+	def __init__(self, human_formatter=logging.Formatter(), **kwargs):
+		super(DebuggableStreamHandler, self).__init__(**kwargs)
+		self.human_formatter = human_formatter
+		if os.getenv("TRUSAS_SERIALIZED_LOG"):
+			self.format = super(DebuggableStreamHandler, self).format
+	
+	def format(self, record):
+		if not self.stream.isatty():
+			return super(DebuggableStreamHandler, self).format(record)
+		return self.human_formatter.format(record)
+			
 
 log_formatter = GmtJsonFormatter()
-log_handler = logging.StreamHandler()
+log_handler = DebuggableStreamHandler()
 log_handler.setFormatter(log_formatter)
 
 def configure_logger():
 	if log_handler in logging.root.handlers: return
+	
 	logging.root.addHandler(log_handler)
 	logging.root.setLevel(logging.DEBUG)
 	# The exception hook works in mysterious ways

@@ -12,6 +12,18 @@
 			<action android:name="independent.trusas.TrusasSensorDump.STOP"/>
 		</intent-filter>
 	</service>
+	
     </application>
 
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <uses-permission android:name="android.hardware.location.network" />
+    <uses-permission android:name="android.hardware.location.gps" />
+
+    <uses-permission android:name="android.hardware.sensor.accelerometer" />
+    <uses-permission android:name="android.hardware.sensor.barometer" />
+    <uses-permission android:name="android.hardware.sensor.compass" />
+    <uses-permission android:name="android.hardware.sensor.gyroscope" />
+    <uses-permission android:name="android.hardware.sensor.light" />
+    <uses-permission android:name="android.hardware.sensor.proximity" />
 </manifest>

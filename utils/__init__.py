@@ -7,6 +7,7 @@ import traceback
 import time
 import re
 import json
+from os import path
 
 from logutils import get_logger
 log = get_logger()
@@ -137,6 +138,13 @@ def sh(command, success_code=0, **kwargs):
 			stderr=result.std_err,
 			status_code=result.status_code)
 	return result
+
+def relative(rel_path, relative_to=None):
+	if relative_to is None:
+		relative_to = inspect.stack()[1][1]
+	
+	directory = path.dirname(relative_to)
+	return path.join(directory, rel_path)
 
 class Signal(list):
 	def connect(self, handler):
