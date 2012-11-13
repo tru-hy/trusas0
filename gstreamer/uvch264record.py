@@ -3,10 +3,6 @@
 An application to record from UVC cameras supporting h264 encoding with
 UTC timestamping for global synchronization.
 
-:todo: This could be a lot more generic, just try to use hardware encoding if available
-	also an almost ideal method separate visualization from recording would be to
-	do a (local) UDP/RDP (perhaps multicast) copy of the stream. This would simplify
-	and robustize things here a lot.
 :todo: The uvch264_src crashes when using the viewfinder. The current workaround
 	is not to take the viewfinder data at all, but to decode the h264 stream
 	on the fly (with VDPAU not to kill the whole system).
@@ -30,21 +26,13 @@ import sys
 import argh
 import os
 
-# This is a hack to set the window title so we can embed it later.
-# A nicer way would be probably to create a new window and provide
-# the id when xvimagesink asks for it, but I'm feeling too lazy.
-# The procname has to be set before gst is imported
-if "PROCNAME_HACK" in os.environ:
-	import procname
-	procname.setprocname(os.environ["PROCNAME_HACK"])
-
 import pygst; pygst.require("0.10")
 
 # Pygst loves to grab the argv, so give the
 # greedy bastard nothing
 args, sys.argv = sys.argv, []; import gst; sys.argv = args
 import gobject
-import logging; log = logging.getLogger(__name__)
+from trusas0.utils import get_logger; log = get_logger()
 import time
 import datetime
 import signal
@@ -137,7 +125,7 @@ gobject.type_register(TimestampSource)
 gst.element_register(TimestampSource, "ts_src", 0)
 
 @argh.command
-def record(output_file="/dev/stdout", video_device=None, audio_device=None):
+def record(output_file="/dev/stdout", udp_h264_port=None, video_device=None, audio_device=None):
 	"""
 	Record from uvch264 device
 
@@ -157,11 +145,8 @@ def record(output_file="/dev/stdout", video_device=None, audio_device=None):
 			'filesink location="%(output_file)s" ' \
 		%{'output_file': output_file}
 	
-	pipe_str += 'textoverlay name=preview halignment=left line-alignment=left ! colorspace ! ' \
-		'xvimagesink force-aspect-ratio=true sync=false '
+	pipe_str += 'ts_src name=ts_src '
 	pipe_str += 'ts_src.text_src0 ! text/plain ! queue ! mux. ' 
-	pipe_str += 'ts_src.text_src1 ! text/plain ! queue ! preview.text_sink ' 
-	pipe_str += 'ts_src name=ts_src ts_src.src ! queue ! preview. '
 	
 
 	if not video_device:
@@ -176,19 +161,22 @@ def record(output_file="/dev/stdout", video_device=None, audio_device=None):
 		pipe_str += \
 		' uvch264_src device=%(video_device)s auto-start=true name=video_src ' \
 			'fixed-framerate=true initial-bitrate=50000000 ' \
-			'video_src.vidsrc ! video/x-h264,width=1920,height=1080,framerate=30/1 ! h264parse ! tee name=vidtee ' \
+			'video_src.vidsrc ! video/x-h264,width=1920,height=1080,framerate=30/1 ! ts_src.sink '\
+			'ts_src.src ! h264parse ! tee name=vidtee ' \
 			'vidtee.src0 ! queue ! mux. ' \
-		'vidtee.src1 ! queue ! vdpauh264dec ! video/x-raw-yuv ! ts_src.sink ' \
 		% {'video_device': video_device}
+
+	# Gstreamer doesn't a nice way to create a proper
+	# SDP/RTP-stream, so let's just dump out the raw video
+	if udp_h264_port:
+		pipe_str += 'vidtee.src1 ! queue ! rtph264pay ! udpsink sync=false host=127.0.0.1 port=%i '%int(udp_h264_port)
 	
 	
-	#pipe_str += 'ts_tee. ! preview.text_sink '
-	#pipe_str += 'ts_src. ! preview.text_sink '
 	# TODO: Audio disabled to get a system clock
 	#if audio_device:
 	#	pipe_str += ' alsasrc device="%s" ! queue ! voaacenc !  mux.'%audio_device
 	
-	logging.info("Launching pipeline %s"%pipe_str)
+	log.info("Launching pipeline %s"%pipe_str)
 	pipeline = gst.parse_launch(pipe_str)
 	clock = pipeline.get_clock()
 	clock.set_property("clock-type", 0) # Set to gst.CLOCK_TYPE_REALTIME
@@ -257,6 +245,5 @@ def main(argv):
 	parser.dispatch(argv=['']+argv)
 
 if __name__ == '__main__':
-	logging.basicConfig(level=logging.WARNING)
 	main(sys.argv[1:])
 	

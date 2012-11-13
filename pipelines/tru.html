@@ -5,7 +5,9 @@
 		<object type="x-trusas/widget"
 				width="100%"
 				height="300"
-				window="trusas_front_video">
+				window="trusas_front_video"
+				service="front_video"
+				command="%(ROOT)s/gstreamer/udph264preview.py -w trusas_front_video 5000">
 		</object>
 	</div>
 	<div class="span6">
@@ -16,7 +18,7 @@
 				window="trusas_map"
 				service="location"
 				command="tail --follow=name --retry %(service_out)s |
-					$(ROOT)s/android/location_decode.py |
+					%(ROOT)s/android/location_decode.py |
 					%(ROOT)s/plot/location_plotter.py -w trusas_map"
 				>
 		</object>
