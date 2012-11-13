@@ -15,7 +15,9 @@
 				height="300"
 				window="trusas_map"
 				service="location"
-				command="tail --follow=name --retry %(service_out)s |%(ROOT)s/plot/location_plotter.py -w trusas_map"
+				command="tail --follow=name --retry %(service_out)s |
+					$(ROOT)s/android/location_decode.py |
+					%(ROOT)s/plot/location_plotter.py -w trusas_map"
 				>
 		</object>
 	</div>
@@ -44,6 +46,20 @@
 					%(ROOT)s/android/sensor_decode.py |
 					%(ROOT)s/transform.py &quot;fields(d, 'accel_x', 'accel_y', 'accel_z')&quot; |
 					%(ROOT)s/plot/signal_plotter.py -w trusas_sensors_accel"
+				>
+		</object>
+	</div>
+	
+	<div class="span6">
+		<h6>Rotation rate</h6>
+		<object type="x-trusas/widget"
+				width="100%"
+				window="trusas_sensors_rot"
+				service="sensors"
+				command="tail --follow=name --retry %(service_out)s |
+					%(ROOT)s/android/sensor_decode.py |
+					%(ROOT)s/transform.py &quot;fields(d, 'rot_rate_x', 'rot_rate_y', 'rot_rate_z')&quot; |
+					%(ROOT)s/plot/signal_plotter.py -w trusas_sensors_rot"
 				>
 		</object>
 	</div>

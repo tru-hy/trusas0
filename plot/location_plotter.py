@@ -45,15 +45,7 @@ def main(init_zoom=17, update_freq=10, window_title=None):
 
 	input = AsyncIter(ReprUnpack(sys.stdin))
 	def consume():
-		for header, obj in input:
-			if 'gps' in obj:
-				loc = obj['gps']
-			elif 'network' in obj:
-				loc = obj['network']
-			else:
-				current_pos.hide()
-				continue
-			
+		for header, loc in input:
 			set_position(loc['latitude'], loc['longitude'])
 	
 		return True

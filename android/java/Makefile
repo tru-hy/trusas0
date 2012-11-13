@@ -6,42 +6,61 @@ ANDROID_JAR=/opt/android-sdk/platforms/android-10/android.jar
 GSON_JAR=lib/gson-2.2.2.jar
 
 SENSOR_PORT=27545
+LOCATION_PORT=27546
 
-#TrusasSensorDump.apk : 
-#	aapt package -v -f -m -S res -J src -M AndroidManifest.xml -I /opt/android-sdk/platforms/android-15/android.jar
-#	javac -d obj -classpath $(ANDROID_JAR) -sourcepath src src/trusas/*.java
-#	dx --dex  --verbose --output=bin/classes.dex obj lib
-#	aapt package -v -f -M AndroidManifest.xml -S res -I $(ANDROID_JAR) -F bin/AndroidTest.unsigned.apk bin
-#
+BUILD_DIR=build
+PACKAGE_PATH=independent/trusas
+JFLAGS =  -target 1.6 -d $(BUILD_DIR) -cp $(ANDROID_JAR):$(GSON_JAR)
+JC = javac
 
 TrusasSensorDump.apk : TrusasSensorDump-unsigned.apk Insecure.keystore
 	jarsigner -keystore Insecure.keystore -storepass dontcare -keypass dontcare -signedjar $@ $< dontcare
 
 TrusasSensorDump-unsigned.apk : bin/classes.dex AndroidManifest.xml
-	aapt package -f -M AndroidManifest.xml -I $(ANDROID_JAR) -F $@ bin
+	aapt package -f -M AndroidManifest.xml -S res -I $(ANDROID_JAR) -F $@ bin
 
-bin/classes.dex : build/independent/trusas/TrusasSensorDump.class
-	dx --dex --output=$@ build lib
+bin/classes.dex : $(BUILD_DIR)/$(PACKAGE_PATH)/DataDump.class
+	dx --dex --output=$@ $(BUILD_DIR) lib
+
+sources=$(wildcard *.java)
+$(BUILD_DIR)/$(PACKAGE_PATH)/DataDump.class : $(sources) $(BUILD_DIR)/$(PACKAGE_PATH)/R.java
+	$(JC) $(JFLAGS) $^
+
+$(BUILD_DIR)/$(PACKAGE_PATH)/R.java : AndroidManifest.xml res/drawable/status_icon.png
+	aapt package -f -m -S res -J build -M AndroidManifest.xml -I $(ANDROID_JAR)
+
+res/drawable/status_icon.png : ../../res/logo.svg
+	mkdir -p res/drawable
+	convert -background transparent -antialias -interpolate nearest $^ \
+		-resize 25x25 -negate -antialias -interpolate nearest \
+		-background transparent -gravity center \
+		-extent 25x25 PNG32:$@
 
 Insecure.keystore : Insecure.keystore
 	keytool -genkeypair -storepass dontcare -keypass dontcare -dname "O=dontcare" -keystore Insecure.keystore -alias dontcare -validity 10000
 
-build/independent/trusas/TrusasSensorDump.class : TrusasSensorDump.java
-	javac -target 1.6 -d build -cp $(ANDROID_JAR):$(GSON_JAR) $^
+#build/independent/trusas/TrusasSensorDump.class : TrusasSensorDump.java
+#	javac -target 1.6 -d build -cp $(ANDROID_JAR):$(GSON_JAR) $^
 
 
 .PHONY: install
 install : TrusasSensorDump.apk
 	adb install -r $^
 
-.PHONY: start
-start: install
-	adb shell am startservice -a independent.trusas.TrusasSensorDump
+.PHONY: start_sensors
+start_sensors: install
+	adb shell am startservice -a independent.trusas.SensorDumpManager
 
-.PHONY: test
-test : start
+.PHONY: test_sensors
+test_sensors : start_sensors
 	adb forward tcp:$(SENSOR_PORT) tcp:$(SENSOR_PORT)
 	sleep 1
 	nc localhost $(SENSOR_PORT)
 
+.PHONY: test_location
+test_location : install
+	adb forward tcp:$(LOCATION_PORT) tcp:$(LOCATION_PORT)
+	adb shell am startservice -a independent.trusas.LocationDumpManager
+	sleep 1
+	nc localhost $(LOCATION_PORT)
 

@@ -1,59 +1,111 @@
 #!/usr/bin/env python
 
-"""
-A daemon to read Android sensors via SL4A
-"""
-from trusas0.packing import ReprPack
-from trusas0.utils import register_shutdown, get_logger
-log = get_logger()
+#!/usr/bin/env python
+
+# TODO! Almost full copypaste from sensors.py!
+
+from trusas0.utils import sh, relative, get_logger
+#log = get_logger()
+from trusas0.packing import default_packer
 import sys
-from proxy import start_script_proxy
-import atexit
-import signal
+import subprocess
+from os import path
+import socket
+from StringIO import StringIO
+import time
+from itertools import chain
+import json
 
-def read_events(proxy, output):
-	"""Read the location until the end of the world which sends an interrupt"""
+LOCATION_PORT = 27546
+ADB = "adb"
+SERVER_APK = relative("java/TrusasSensorDump.apk")
 
-	while True:
-		# This seems to be required for the event to be removed from	
-		# the queue. There is the eventWaitFor, but I can't find a way
-		# to remove the fetched event
-		# :todo: Verify that this doesn't mess with other processes
+class SocketLineReader(object):
+	def __init__(self, con, bufsize=4096):
+		self.con = con
+		# Would have used StringIO, but it does quite weird
+		# stuff having buflist and buf and messing around with
+		# those, so I don't trust it
+		self.buflist = []
+		self.bufsize = bufsize
+	
+	def has_eof(self):
 		try:
-			event = proxy.eventWait()
-		except AttributeError:
-			# This gets thrown because we sadistically kill
-			# the socket in the shutdown, so demote to warning
-			log.warning(
-			"The location service died. If you were stopping "\
-			"the session, it's nothing to worry about, the bug is "\
-			"known and isn't dangerous, but keeps nagging so "\
-			"that Jami will fix it some day.")
-			return
+			line = self.next()
+		except StopIteration:
+			return True
+
+		#self.unread(line)
+		return False
+
+	def unread(self, data):
+		self.buflist.insert(0, data.strip()+"\n")
+	
+	def next_line(self):
+		# TODO: Ugly copypaste from logutils.py
+		line_delim = '\n' # TODO: There may be a more portable way for this
+		buflist = self.buflist
+		for i, buf in enumerate(buflist):
+			if line_delim in buf:
+				break
+		else:
+			return None
+
+		last, not_ours = buflist[i].split(line_delim, 1)
+		line = "".join(chain(buflist[:i], [last]))
+		self.buflist = [not_ours] + buflist[i+1:]
+		return line
+
+	def __iter__(self): return self
+
+	def next(self):
+		while True:
+			line = self.next_line()
+			if line is not None:
+				return line
+			
+			data = self.con.recv(self.bufsize)
+			if data == '':
+				# NOTE: There may still be data (without a newline)
+				#	in the buffer,
+				#	but the caller is probably only
+				#	interested in full lines. If not, they
+				#	can dig the remains from buf. Not gonna
+				#	set up an extra flag just for this.
+				raise StopIteration
+			self.buflist.append(data)
+
+
+def main(retries=10, retry_delay=0.5):
+	adb = lambda cmd, ADB=ADB: sh("%s %s"%(ADB, cmd))
+	adb("forward tcp:%i tcp:%i"%(LOCATION_PORT, LOCATION_PORT))
+	adb("install %s"%SERVER_APK)
+	adb("shell am startservice -a independent.trusas.LocationDumpManager")
+	
+	for retry in range(retries):
+		try:
+			con = socket.create_connection(
+				("127.0.0.1", LOCATION_PORT),
+				timeout=retry_delay)
+			con.setblocking(1) # Just in case
+			reader = SocketLineReader(con)
+			# Seems to be the only way to see if the
+			# socket is still (or in this case has ever really been)
+			# connected.
+			if not reader.has_eof():
+				break
+			
+		except socket.error:
+			pass
 		
-		result = event.result
-		if result is None: return
-		output.send(result['data'])
-
-
-def main(time_delay=10, distance_delay=0):
-	proxy = start_script_proxy()
-	output = ReprPack(sys.stdout)
+		time.sleep(retry_delay)
+	else:
+		raise IOError("Unable to connect to trusas location dump.")
 	
-	@register_shutdown
-	def stop():
-		# This is not very nice as it will
-		# cause an exception in read_events,
-		# but this thing is quite hacky anyhow
-		proxy.client.close()
-		tmp_proxy = start_script_proxy()
-		tmp_proxy.stopLocating()
-		tmp_proxy.client.close()
-	
-	proxy.startLocating(time_delay, distance_delay)
-	read_events(proxy, output)
-	
-	
+	packer = default_packer()
+	for line in reader:
+		event = json.loads(line)
+		packer.send(event)
 
 if __name__ == '__main__':
 	main()

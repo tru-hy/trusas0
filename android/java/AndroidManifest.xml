@@ -5,17 +5,28 @@
     android:versionName="0.1"
     >
 
-    <application>
-	<service android:name=".TrusasSensorDump">
+    <application android:icon="@drawable/status_icon"
+    		android:label="Trusas dump">
+	<service android:name=".SensorDumpManager">
 		<intent-filter>
-			<action android:name="independent.trusas.TrusasSensorDump"/>
-			<action android:name="independent.trusas.TrusasSensorDump.STOP"/>
+			<action android:name="independent.trusas.SensorDumpManager"/>
+			<action android:name="independent.trusas.SensorDumpManager.STOP"/>
 		</intent-filter>
 	</service>
+	
+	<service android:name=".LocationDumpManager">
+		<intent-filter>
+			<action android:name="independent.trusas.LocationDumpManager"/>
+			<action android:name="independent.trusas.LocationDumpManager.STOP"/>
+		</intent-filter>
+	</service>
+
 	
     </application>
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <uses-permission android:name="android.hardware.location.network" />
     <uses-permission android:name="android.hardware.location.gps" />
