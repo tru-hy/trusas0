@@ -1,0 +1,58 @@
+# Maintainer: Jami Pekkanen <jami.pekkanen@helsinki.fi>
+pkgname=trusas-hg
+pkgver=66
+pkgrel=1
+pkgdesc="Trusas signal acquisition system"
+arch=(i686)
+url=""
+license=('AGPLv3')
+groups=()
+depends=('python2' 'adb' 'gstreamer0.10-bad-git'
+  'gstreamer0.10-good-git' 'gstreamer0.10-ffmpeg'
+  'gstreamer0.10-git' 'gstreamer0.10-base-git'
+  'gstreamer0.10-python' 'pyqwt' 'python2-numpy'
+  'python2-argh' 'libchamplain' 'python2-envoy'
+  'python2-gobject' 'python2-pyqt' 'python2-procname'
+  'xorg-xwininfo'
+  )
+makedepends=('mercurial')
+provides=()
+conflicts=()
+replaces=()
+backup=()
+options=()
+install=
+source=()
+noextract=()
+md5sums=() #generate with 'makepkg -g'
+
+_hgroot=../..
+_hgrepo=trusas0
+
+build() {
+  cd "$srcdir"
+  msg "Connecting to Mercurial server...."
+
+  if [[ -d "$_hgrepo" ]]; then
+    cd "$_hgrepo"
+    hg pull -u
+    msg "The local files are updated."
+  else
+    hg clone "$_hgroot" "$_hgrepo"
+  fi
+
+  msg "Mercurial checkout done or server timeout"
+  msg "Starting build..."
+
+  cd $srcdir/$_hgrepo
+ 
+  make
+}
+
+package() {
+  cd $pkgdir
+  mkdir opt
+  cp -r "$srcdir/$_hgrepo" opt
+}
+
+# vim:set ts=2 sw=2 et:
