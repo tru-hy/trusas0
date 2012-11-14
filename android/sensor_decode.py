@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 from trusas0.packing import default_unpacker, default_packer
 from trusas0.utils import get_logger

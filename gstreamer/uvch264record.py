@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 """
 An application to record from UVC cameras supporting h264 encoding with
 UTC timestamping for global synchronization.

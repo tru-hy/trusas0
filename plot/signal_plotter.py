@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 # Doing * imports from Qt as they have the Q/Qwt namespace prefix
 from PyQt4.Qt import *

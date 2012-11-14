@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 from trusas0.utils import get_logger
 log = get_logger()

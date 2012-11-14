@@ -1,6 +1,6 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 # TODO! Almost full copypaste from sensors.py!
 

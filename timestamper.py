@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 """
 A stupid service that just repeteadly sends the current time.
 Mostly useful for testing or showing the current time in an
