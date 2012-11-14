@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 
 from os import path
 import sys
@@ -15,6 +15,7 @@ import logging
 NEXUS_ADDR = "00:A0:96:2F:A8:A6"
 VIDEO_DEVICE = "/dev/video0"
 UDP_PREVIEW_PORT=5000
+BASE_SESSION_DIR='/home/jampekka/tmp/sessions'
 
 mypath=path.dirname(path.realpath(__file__))
 
@@ -30,7 +31,7 @@ s['sensors'] = ROOT+'/android/sensors.py'
 
 
 run_ui(spec=s,
-	base_dir='/home/jampekka/tmp/sessions',
+	base_dir=BASE_SESSION_DIR,
 	content=open(path.join(mypath, 'tru.html')).read()
 	)
 
