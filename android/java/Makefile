@@ -20,13 +20,15 @@ TrusasSensorDump-unsigned.apk : bin/classes.dex AndroidManifest.xml
 	aapt package -f -M AndroidManifest.xml -S res -I $(ANDROID_JAR) -F $@ bin
 
 bin/classes.dex : $(BUILD_DIR)/$(PACKAGE_PATH)/DataDump.class
+	mkdir -p bin
 	dx --dex --output=$@ $(BUILD_DIR) lib
 
-sources=$(wildcard *.java)
-$(BUILD_DIR)/$(PACKAGE_PATH)/DataDump.class : $(sources) $(BUILD_DIR)/$(PACKAGE_PATH)/R.java
+sources=$(wildcard *.java) 
+$(BUILD_DIR)/$(PACKAGE_PATH)/DataDump.class : $(sources) $(BUILD_DIR)/$(PACKAGE_PATH)/R.java | $(GSON_JAR)
 	$(JC) $(JFLAGS) $^
 
 $(BUILD_DIR)/$(PACKAGE_PATH)/R.java : AndroidManifest.xml res/drawable/status_icon.png
+	mkdir -p $(BUILD_DIR)
 	aapt package -f -m -S res -J build -M AndroidManifest.xml -I $(ANDROID_JAR)
 
 res/drawable/status_icon.png : ../../res/logo.svg
@@ -35,6 +37,16 @@ res/drawable/status_icon.png : ../../res/logo.svg
 		-resize 25x25 -negate -antialias -interpolate nearest \
 		-background transparent -gravity center \
 		-extent 25x25 PNG32:$@
+
+$(GSON_JAR): $(GSON_JAR) | lib
+	wget http://google-gson.googlecode.com/files/google-gson-2.2.2-release.zip -O /tmp/gson.zip
+	unzip -o /tmp/gson.zip google-gson-2.2.2/gson-2.2.2.jar
+	mv google-gson-2.2.2/gson-2.2.2.jar lib
+	rmdir google-gson-2.2.2
+	
+lib:
+	mkdir -p lib
+	
 
 Insecure.keystore : Insecure.keystore
 	keytool -genkeypair -storepass dontcare -keypass dontcare -dname "O=dontcare" -keystore Insecure.keystore -alias dontcare -validity 10000
