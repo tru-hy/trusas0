@@ -13,6 +13,8 @@ log = trusas0.utils.get_logger()
 # TODO: Currently allows only one session to run at the same time
 #	could be easily fixed by adding some kind of session id to
 #	the environment.
+# TODO: The whole environment probing thing is a needlessly hacky
+#	approach, change to a good-old run-dir with pidfiles.
 SERVICE_VAR="TRUSAS_SERVICE"
 BASE_DIR_VAR="TRUSAS_DIR"
 
@@ -110,6 +112,7 @@ class ServiceManager(object):
 		pid = start_service(name, service.command,
 			stdout.fileno(), stderr.fileno(), self.session_dir,
 			extra_env=service.extra_env)
+		log.info("Started service %s with pid %i"%(name, pid))
 		self.pids[name] = pid
 		
 		stdout.close()
@@ -162,17 +165,31 @@ class ServiceManager(object):
 		for name, pid in self.pids.iteritems():
 			try:
 				os.kill(pid, signal.SIGTERM)
+				log.info("Killed %s with pid %s"%(name, pid))
 			except OSError, e:
 				log.warning(
 					"Couldn't tell service %s to stop: %s"%(name, str(e)))
 		
 		for i in range(int(timeout/poll_interval)):
 			for dead in self._dangling_pids():
+				log.info("%s reported dead"%(dead))
 				del self.pids[dead]
 			if len(self.pids) == 0:
-				return
+				break
 			time.sleep(poll_interval)
 		
+		log.warning("FIXME!!! Killing leftover 'ghost' services (probably adbd) "\
+			"left over due to the stupid environment hacking stuff")
+		for name, pid in running_service_pids():
+			try:
+				os.kill(pid, signal.SIGTERM)
+			except OSError, e:
+				log.warning(
+					"Couldn't kill 'ghost' service %s: %s"%(name, str(e)))
+
+		if len(self.pids) == 0:
+			return
+
 		for name, pid in self.pids.iteritems():
 			try:
 				os.kill(pid, signal.SIGKILL)
