@@ -6,6 +6,8 @@ TODO: Add the usual stuff that startup scripts need here so
 import utils
 import logging
 
+from utils import sh
+
 log = utils.get_logger()
 
 def set_default_log():

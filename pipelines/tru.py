@@ -5,7 +5,7 @@ import sys
 # TODO: A hack
 sys.path.append(path.realpath("/home/jampekka/pro"))
 
-import trusas0.script
+from trusas0.script import sh
 from trusas0 import ROOT
 from trusas0.service import ServiceSpec
 from trusas0.ui import run_ui
@@ -15,7 +15,7 @@ import logging
 NEXUS_ADDR = "00:A0:96:2F:A8:A6"
 VIDEO_DEVICE = "/dev/video0"
 UDP_PREVIEW_PORT=5000
-BASE_SESSION_DIR='/home/jampekka/tmp/sessions'
+BASE_SESSION_DIR=sh("zenity --title \\\"Base directory for sessions.\\\" --file-selection --directory").std_out.strip()
 
 mypath=path.dirname(path.realpath(__file__))
 
