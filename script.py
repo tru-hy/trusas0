@@ -5,8 +5,10 @@ TODO: Add the usual stuff that startup scripts need here so
 
 import utils
 import logging
-
 from utils import sh
+from trusas0 import ROOT
+from trusas0.service import ServiceSpec
+from trusas0.ui import run_ui
 
 log = utils.get_logger()
 
