@@ -11,6 +11,7 @@ import trusas0.utils; log = trusas0.utils.get_logger()
 from trusas0.utils.logutils import LogWatcher
 from trusas0.utils import register_shutdown, Hook, logutils
 import logging
+import itertools
 
 
 class StaticWebPage(QWebPage):
@@ -50,30 +51,36 @@ class WebUi(object):
 		self._widget.setPage(page)
 		page.loadFinished.connect(self._init)
 
-	def _init(self, *args):
-		self._dom = self._widget.page().mainFrame().documentElement()
+	def _init(self, ok):
+		page = self._widget.page()
+		frame = page.mainFrame()
+		document = frame.documentElement()
+		self._dom = document
+		
+	def _js(self, js):
+		return self._widget.page().mainFrame().evaluateJavaScript(js)
+
 
 
 class SessionUi(WebUi):
-	def __init__(self, spec, base_dir, content):
-		# OH GOD THE HACKS!
-		spec.instance = Hook(spec.instance)
-		spec.instance.after.connect(self.__setup_my_logger)
-		self._spec = spec
-		self._base_dir = base_dir
+	def __init__(self, manager, was_running, content):
+		self._manager = manager
+		
+		self._log_watcher = logutils.LogWatcher()
+		# On reattach, seek to the last line of the log.
+		# TODO: We may miss some notifications that has happened
+		#	while the session has been running "blindly",
+		#	but I'll live with this for now.
+		if was_running:
+			self._log_watcher.only_new = True
+		self.__setup_my_logger()
+
 		self._content = content
 		
 		self._templatedir = path.join(path.dirname(__file__), 'template')
 		template_file = path.join(self._templatedir, "index.html")
 		WebUi.__init__(self, template_file)
 
-		self._spec = spec
-		self._session_base_dir = base_dir
-
-		self._log_watcher = logutils.LogWatcher()
-
-		self._manager = None
-		
 		page = self._widget.page()
 		embed = WidgetEmbedFactory(self)
 		page.setPluginFactory(embed)
@@ -88,6 +95,8 @@ class SessionUi(WebUi):
 		element.setInnerXml(self.__template_data(template))
 
 	def __content(self, template):
+		# TODO: An unsuccesfull hack to try to keep the
+		# 	QX11Embed widgets alive. Remove.
 		self._js("$('#content').addClass('hide')")
 		self.__template_content(
 			self._dom.findFirst("#extra_content"),
@@ -96,22 +105,22 @@ class SessionUi(WebUi):
 	
 	def _init(self, ok):
 		WebUi._init(self, ok)
-		session_dir = get_running_session()
-		if session_dir:
-			# On reattach, seek to the last line of the log.
-			# TODO: We may miss some notifications that has happened
-			#	while the session has been running "blindly",
-			#	but I'll live with this for now.
-			#	Also this is in a weird place as the startup
-			#	architecture is currently a mess.
-			self._log_watcher.only_new = True
-			self._manager = self._spec.instance(session_dir).start()
-			self._start_main_ui()
-		else:
-			self._startup()
+		self._dom.findFirst("#content").setInnerXml(self._content)
+		for name, service in self._manager.services.iteritems():
+			self._log_watcher.add_path(service.errfile)
+
+		# Start the manager before the nag_timer
+		# starts to look for the pids
+		self._manager.start()
+
+		nag_timer = QTimer()
+		nag_timer.timeout.connect(self._do_maintenance)
+		nag_timer.start(100)
+		self.__nag_timer = nag_timer
+		self.index()
 	
-	def __setup_my_logger(self, manager, session_dir):
-		session_dir = manager.session_dir
+	def __setup_my_logger(self):
+		session_dir = self._manager.session_dir
 		formatter = type(trusas0.utils.logutils.log_formatter)()
 		my_path = path.join(session_dir, "_ui.log")
 		handler = logging.FileHandler(my_path)
@@ -120,12 +129,6 @@ class SessionUi(WebUi):
 		logging.root.addHandler(handler)
 	
 
-	def _startup(self):
-		self.__content("start_session.html")
-
-	def _js(self, js):
-		return self._widget.page().mainFrame().evaluateJavaScript(js)
-	
 	def index(self):
 		# We don't want to remove the element containing the widgets
 		# as this will cause their Qt widgets to be deleted which isn't
@@ -133,34 +136,6 @@ class SessionUi(WebUi):
 		# still nags in the stdout btw.
 		self._js("$('#extra_content').addClass('hide')")
 		self._js("$('#content').removeClass('hide')")
-
-	def create_session(self, session_id, **kwargs):
-		try:
-			session_dir = ServiceManager.create_session_dir(
-					self._base_dir, session_id)
-		except ServiceManager.SessionExists, e:
-			self.__nag("error", "Session with ID <strong>%s</strong> already exists! Try another name."%session_id)			
-			return
-
-		self._manager = self._spec.instance(session_dir).start()
-		self._start_main_ui()
-
-
-	def _start_main_ui(self):
-		self._dom.findFirst("#content").setInnerXml(self._content)
-		# TODO: The whole startup is a mess. Maybe session creation
-		#	should be in a totally separate class so we wouldn't
-		#	have these weird implicit states?
-		for name, service in self._manager.services.iteritems():
-			self._log_watcher.add_path(service.errfile)
-		nag_timer = QTimer()
-		nag_timer.timeout.connect(self._do_maintenance)
-		nag_timer.start(100)
-		self.__nag_timer = nag_timer
-		self.index()
-
-	def __javascript(self, code):
-		self._widget().page().mainFrame().evaluate_javascript(code)
 
 	def __nag(self, level, content):
 		classes = dict(
@@ -192,14 +167,13 @@ class SessionUi(WebUi):
 		self._manager.ensure_service(name)
 
 	def confirm_shutdown(self):
-		if self._manager is None:
-			self._widget.close()
-			return
-
 		self.__content("confirm_shutdown.html")
 
 	def do_shutdown(self):
 		self.__content("do_shutdown.html")
+		# TODO: Errors (including and perhaps especially non-clean shutdowns)
+		#	should be acknowledged before the UI closes
+		self.__nag_timer.stop()
 		if self._manager is None:
 			self._widget.close()
 			return
@@ -209,6 +183,12 @@ class SessionUi(WebUi):
 			self._widget.close()
 					
 	def _shutdown(self, **kwargs):
+		# TODO: The architecture really doesn't separate
+		#	the real "business" logic from the UI,
+		#	so stuff ends up in weird places like this,
+		#	but we (or the embed thingie) started them,
+		#	so let's clean up also.
+
 		# My children go with me from this cruel world!
 		process_group = os.getpgrp()
 		# But I'll go last!
@@ -221,24 +201,110 @@ class SessionUi(WebUi):
 		#	to really stop so we won't leave orphans,
 		#	but let's leave the task for init for now.
 
+class SessionStarterUi(WebUi):
+	def __init__(self, spec, base_dir, content,
+			startup_template=None, main_ui_cls=SessionUi):
+		self._spec = spec
+		self._base_dir = base_dir
+		self._content = content
+		self._main_ui_cls = main_ui_cls
+		self._ui = None
+
+		if startup_template is None:
+			startup_template=trusas0.utils.relative(
+				path.join("template", "start_session.html"))
+		self._startup_template = startup_template
+				
+		
+
+	def get_session_ui(self):
+		session_dir = get_running_session()
+		if session_dir:
+			self._start_session(session_dir, True)
+			return self._ui
+		
+		# TODO: WOW! This is quite horribly wrong! But for some reason
+		# if we create the widgets now, but never show them,
+		# the main UI will freeze at getting the DOM (weird, yes),
+		# so defer until here.
+		# TODO, FIXME: STOP DOING STUPID THINGS IN THE CONSTRUCTORS
+		#		SO THESE ARE NEEDED!!
+		#		- Butbutbut, I like the pseudo-RAII-thingie and
+		#		  single-step initialization
+		#		- FU! WE WRAPPERS DON'T CARE ABOUT YOUR WANTS
+		#		  AND CRAZY REFTRACKING SCHEMES!
+		#		  WRITE C++ AND SUFFER THE HELL IF YOU WANT
+		#		  RAII YOU LAZY BUM!
+		WebUi.__init__(self, self._startup_template)
+		self._dialog = QDialog()
+		# Why is there no dummy layout?
+		self._dialog.setLayout(QStackedLayout())
+		self._dialog.layout().addWidget(self._widget)
+		self._dialog.showFullScreen()
+		self._dialog.exec_()
+		return self._ui
+
+	def cancel(self):
+		self._dialog.reject()
+
+	def create_session(self, session_id, **kwargs):
+		try:
+			session_dir = ServiceManager.create_session_dir(
+					self._base_dir, session_id)
+		except ServiceManager.SessionExists, e:
+			if session_id == '':
+				self._js("bootbox.alert('I really need that ID, so empty one isn\\'t an option!')")
+				return
+			self._js("bootbox.alert('Session with ID <strong>%s</strong> already exists! Try another ID.')"%session_id)			
+			return
+
+		self._start_session(session_dir, False)
+		self._dialog.accept()
+	
+	def _start_session(self, session_dir, already_running):
+		manager = self._spec.instance(session_dir)
+		self._ui = self._main_ui_cls(manager=manager,
+			content=self._content,
+			was_running=already_running,
+			)
+
+def _qt_scope_hack(app):
+	"""
+	If QApplication gets out of scope before the
+	program ends, it tends to segfault. This of course kills
+	our otherwise nice shutdown handlers, so let's put it to
+	the global scope as a workaroundhack. Other hack that works
+	is to return the app from the function and make sure the
+	caller makes a ref on it, but I'll rather contain the
+	hackery here.
+	"""
+	hackname = "_qapp_hack"
+	for retry in itertools.count(0):
+		if hackname + str(retry) not in globals():
+			break
+
+	globals()[hackname] = app
+
 
 def run_ui(spec, base_dir, content):
-	app = QApplication([])
+
+	# TODO: QApplication or something in Qt seems to
+	# crash when we return from here. Investigate and hack around.
 		
-	ui = SessionUi(spec, base_dir, content)
-
-
-	# Apparently QApplication hates to be out-scoped (leading
-	# to a segfault), so let's keep it here.
-	# :todo: Doesn't fix it
-	ui._apphack = app
-
+	app = QApplication([])
+	_qt_scope_hack(app)
+		
+	start_ui = SessionStarterUi(spec, base_dir, content)
+	
+	ui = start_ui.get_session_ui()
+	if ui is None: return
+	
 	def ui_shutdown(**kwargs):
 		ui._shutdown()
 		app.exit()
 	register_shutdown(ui_shutdown)
 	ui._widget.showFullScreen()
-	ui._widget.show()
+	#ui._widget.show()
 	app.exec_()
 	
 
@@ -251,7 +317,8 @@ class WidgetEmbedFactory(QWebPluginFactory):
 		self.widgets = {}
 
 		# There's probably a way to get notified
-		# by X when a new window opens, but this
+		# by X when a new window opens or better yet
+		# make the clients to take a window id, but this
 		# must suffice for now
 		self.swallow_timer = QTimer()
 		self.swallow_timer.timeout.connect(self._swallow_windows)
@@ -309,7 +376,8 @@ class WidgetEmbedFactory(QWebPluginFactory):
 		#	because apparently this will get called multiple
 		#	times in parallel(?) if the swallow is too slow. Or
 		#	something else weird is happening, has the windows
-		#	tend to "flicker" with small intervals
+		#	tend to "flicker" with small intervals. Investigate
+		#	and fix.
 
 		for name, widget in self.widgets.iteritems():
 			try:
