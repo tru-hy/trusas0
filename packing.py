@@ -45,7 +45,7 @@ class ReprUnpack(object):
 		# but for some reason python does horrible buffering with this,
 		# so it's sadly a lot less general readline for now
 		data = self.input.readline()
-		if data is None:
+		if data is None or data == '':
 			raise StopIteration
 		return literal_eval(data)
 

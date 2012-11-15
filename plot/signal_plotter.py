@@ -35,11 +35,11 @@ class SignalPlot(QwtPlot):
 			if name not in self.curves:
 				curve = QwtPlotCurve()
 				curve.attach(self)
-				self.curves[name] = [curve, np.empty(0), np.empty(0)]
+				self.curves[name] = [curve, [], []]
 			
 			stuff = self.curves[name]
-			stuff[1] = np.append(stuff[1], x)
-			stuff[2] = np.append(stuff[2], value)
+			stuff[1].append(x)
+			stuff[2].append(value)
 
 		
 	def refresh(self):
@@ -48,27 +48,35 @@ class SignalPlot(QwtPlot):
 		Redraws the plot with the current data so that the last self.window_size
 		of x-axis is visible. Autoscales the plot to fit the whole y-axis.
 		
-		:todo: We can cache the visible stuff for "searchsorted"
 		:todo: Allow interactive changing of the window size and navigating over time
 		:todo: Qwt seems to allow some kind of incremental rendering for better performance
+		:todo: Implementing the buffering stuff here is quite awful design
 		"""
 		if len(self.curves) == 0: return
-
-		max_x = None
-		for curve, x, y in self.curves.itervalues():
-			max_x = max(max_x, np.max(x))
-
-		start_x = max_x - self.x_visible
-
-		for curve, x, y in self.curves.itervalues():
-			start_i = np.searchsorted(x, start_x)
-			curve.setData(x[start_i:], y[start_i:])
 		
+		max_x = max((c[1][-1] for c in self.curves.itervalues()))
+	
+		start_x = max_x - self.x_visible
+		
+		for c in self.curves.itervalues():
+			while c[0] < start_x:
+				c.popleft()
+
+		for curve, x, y in self.curves.itervalues():
+			# I guess this probably copies stuff, more
+			# efficient way would of course to use a
+			# ringbuffer, but I couldn't find a ready made
+			# implementation and am too busy for doing things
+			# right.
+			curve.setData(x, y)
+		
+		# The autoscale likes to hang on to integers without
+		# this
 		self.setAxisScale(self.xBottom, start_x, max_x)
 		self.replot()
 
 @argh.command
-def main(window_title=None):
+def main(window_title=None, quit_on_eof=False):
 	from trusas0.packing import default_unpacker, AsyncIter
 
 	import sys
@@ -86,10 +94,14 @@ def main(window_title=None):
 	base_ts = time.time()
 
 	def consume():
-		for header, obj in input:
-			ts = header['ts']-base_ts
-			plot.add_datum(ts, obj)
-		plot.refresh()
+		try:
+			for header, obj in input:
+				ts = header['ts']-base_ts
+				plot.add_datum(ts, obj)
+			plot.refresh()
+		except EOFError:
+			timer.stop()
+			if quit_on_eof: app.quit()
 
 	update_rate = 30
 	timer = QTimer(); timer.timeout.connect(consume)
