@@ -28,7 +28,7 @@ class ReprPack(object):
 			data = wrap_object(obj)
 		else:
 			data = (header, obj)
-
+		
 		self.output.write(repr(data))
 		self.output.write("\n")
 		self.output.flush()
@@ -44,10 +44,16 @@ class ReprUnpack(object):
 		# :todo: We could use the iterator interface (eg self.input.next())
 		# but for some reason python does horrible buffering with this,
 		# so it's sadly a lot less general readline for now
-		data = self.input.readline()
-		if data is None or data == '':
-			raise StopIteration
-		return literal_eval(data)
+
+		while True:
+			data = self.input.readline()
+			if data is None or data == '':
+				raise StopIteration
+
+			try:
+				return literal_eval(data)
+			except SyntaxError:
+				log.exception("Unrecognized data.")
 
 from Queue import Queue, Empty
 from threading import Thread
