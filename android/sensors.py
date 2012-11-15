@@ -101,6 +101,14 @@ def main(retries=10, retry_delay=0.5):
 	packer = default_packer()
 	for line in reader:
 		event = json.loads(line)
+		# FIXME: A desperate premature optimization that
+		#	probably at least halves the filesizes, but
+		#	breaks our principles. When we get a stream
+		#	compression, this mostly static stuff will be
+		#	a non-issue
+		event["sensor_type"] = event["sensor"]["mType"]
+		del event["sensor"]
+		
 		packer.send(event)
 
 if __name__ == '__main__':
