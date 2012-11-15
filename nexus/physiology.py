@@ -6,6 +6,8 @@ from trusas0.packing import default_packer
 import pynexus
 import argh
 import sys
+from subprocess import Popen
+import os
 
 
 def record(nexus_address, output):
@@ -14,7 +16,12 @@ def record(nexus_address, output):
 		output.send(sample)
 
 @argh.command
-def main(nexus_address):
+def main(nexus_address, pin=None):
+	if pin:
+		# TODO: Check the status
+		Popen("echo %s |bluez-simple-agent",
+			stdout=open(os.devnull), stderr=open(os.devnull),
+			shell=True)
 	record(nexus_address, default_packer())
 
 if __name__ == '__main__':

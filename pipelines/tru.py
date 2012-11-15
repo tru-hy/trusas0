@@ -12,6 +12,9 @@ import os
 
 
 NEXUS_ADDR = "00:A0:96:2F:A8:A6"
+# This is no big secret as it's broadcasted
+# in the device name
+NEXUS_PIN = 0115
 VIDEO_DEVICE = "/dev/video0"
 UDP_PREVIEW_PORT=5000
 
@@ -24,7 +27,7 @@ mypath=path.dirname(path.realpath(__file__))
 
 s = ServiceSpec()
 
-s['nexus'] = ROOT+'/nexus/physiology.py %s'%NEXUS_ADDR	
+s['nexus'] = ROOT+'/nexus/physiology.py -p %s %s'%(NEXUS_PIN, NEXUS_ADDR)
 s.add(name='front_video',
 	command=ROOT+'/gstreamer/uvch264record.py -u %i -v "%s"'%(UDP_PREVIEW_PORT, VIDEO_DEVICE),
 	outfile="%(session_dir)s/%(name)s.mkv")
