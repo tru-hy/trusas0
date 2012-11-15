@@ -58,9 +58,10 @@ class SignalPlot(QwtPlot):
 	
 		start_x = max_x - self.x_visible
 		
-		for c in self.curves.itervalues():
-			while c[0] < start_x:
-				c.popleft()
+		for c, x, y in self.curves.itervalues():
+			while len(x) > 0 and x[0] < start_x:
+				del x[0]
+				del y[0]
 
 		for curve, x, y in self.curves.itervalues():
 			# I guess this probably copies stuff, more
