@@ -42,11 +42,13 @@ s = ServiceSpec()
 
 s['nexus'] = ROOT+'/nexus/physiology.py -p %i %s'%(NEXUS_PIN, NEXUS_ADDR)
 
+# TODO: Find a nicer way to find the devices! This configuration working
+#	 may be purely luck.
 s.add(name='front_video',
-	command=ROOT+'/gstreamer/uvch264record.py -u %i -v "%s"'%(5000, "/dev/video0"),
+	command=ROOT+'/gstreamer/uvch264record.py -u %i -v "%s" -a "%s"'%(5000, "/dev/video0", "hw:0,0"),
 	outfile="%(session_dir)s/%(name)s.mkv")
 s.add(name='in_video',
-	command=ROOT+'/gstreamer/uvch264record.py -u %i -v "%s"'%(5010, "/dev/video1"),
+	command=ROOT+'/gstreamer/uvch264record.py -u %i -v "%s" -a "%s"'%(5010, "/dev/video1", "hw:1,0"),
 	outfile="%(session_dir)s/%(name)s.mkv")
 
 

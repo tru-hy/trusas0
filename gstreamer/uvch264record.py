@@ -172,14 +172,17 @@ def record(output_file="/dev/stdout", udp_h264_port=None, video_device=None, aud
 		pipe_str += 'vidtee.src1 ! queue ! rtph264pay ! udpsink sync=false host=127.0.0.1 port=%i '%int(udp_h264_port)
 	
 	
-	# TODO: Audio disabled to get a system clock
-	#if audio_device:
-	#	pipe_str += ' alsasrc device="%s" ! queue ! voaacenc !  mux.'%audio_device
+	if audio_device:
+		pipe_str += ' alsasrc device="%s" ! queue ! voaacenc !  mux.'%audio_device
 	
 	log.info("Launching pipeline %s"%pipe_str)
 	pipeline = gst.parse_launch(pipe_str)
-	clock = pipeline.get_clock()
+	
+	# Make sure we have an EPOCH clock
+	clock = gst.system_clock_obtain()
 	clock.set_property("clock-type", 0) # Set to gst.CLOCK_TYPE_REALTIME
+	pipeline.use_clock(clock)
+	
 	mainloop = gobject.MainLoop()
 	
 	ts_src = pipeline.get_by_name('ts_src')
@@ -204,9 +207,11 @@ def record(output_file="/dev/stdout", udp_h264_port=None, video_device=None, aud
 		
 	def shutdown():
 		# This should work:
-		# pipeline.send_event(gst.event_new_eos())
+		#pipeline.send_event(gst.event_new_eos())
 		# But because the gstreamer EOS stuff seems to be FUBAR,
 		# force the EOS to all pads
+		# TODO: THIS DOESN'T SEEM TO ALWAYS PROVIDE A CLEAN
+		#	SHUTDOWN
 		for element in pipeline.recurse():
 			for pad in element.pads():
 				if pad.get_property("direction") != gst.PAD_SINK:
