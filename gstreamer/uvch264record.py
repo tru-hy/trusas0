@@ -155,8 +155,8 @@ def record(output_file="/dev/stdout", udp_h264_port=None, video_device=None, aud
 	else:
 		from trusas0.utils import sh
 		# Disable autofocus
-		sh("v4l2-ctl -d /dev/video0 -c focus_auto=0")
-		sh("v4l2-ctl -d /dev/video0 -c focus_absolute=0")
+		sh("v4l2-ctl -d %s -c focus_auto=0"%video_device)
+		sh("v4l2-ctl -d %s -c focus_absolute=0"%video_device)
 		
 		pipe_str += \
 		' uvch264_src device=%(video_device)s auto-start=true name=video_src ' \
