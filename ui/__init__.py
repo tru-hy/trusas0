@@ -78,6 +78,9 @@ class SessionUi(WebUi):
 
 		self._content = content
 		
+		self.__nag_timer = QTimer()
+		self.__nag_timer.timeout.connect(self._do_maintenance)
+		
 		self._templatedir = path.join(path.dirname(__file__), 'template')
 		template_file = path.join(self._templatedir, "index.html")
 		WebUi.__init__(self, template_file)
@@ -120,10 +123,7 @@ class SessionUi(WebUi):
 		# starts to look for the pids
 		self._manager.start()
 
-		nag_timer = QTimer()
-		nag_timer.timeout.connect(self._do_maintenance)
-		nag_timer.start(100)
-		self.__nag_timer = nag_timer
+		self.__nag_timer.start(100)
 		self.index()
 	
 	def __setup_my_logger(self):

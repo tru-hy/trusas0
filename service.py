@@ -118,7 +118,7 @@ class ServiceManager(object):
 		"""
 		:todo: Do this asynchronously
 		"""
-		for name, runner in self.pids.iteritems():
+		for name, runner in self.runners.iteritems():
 			try:
 				runner.stop()
 			except OSError, e:
@@ -126,10 +126,11 @@ class ServiceManager(object):
 					"Couldn't tell service %s to stop: %s"%(name, str(e)))
 		
 		for i in range(int(timeout/poll_interval)):
-			for name, runner in self.runners.iteritems():
+			for name, runner in self.runners.items():
 				if not runner.is_dangling(): continue
-				log.info("%s reported dead"%(dead))
+				log.info("%s reported dead"%(name))
 				runner.clear()
+				del self.runners[name]
 
 			if len(self.runners) == 0:
 				break
@@ -144,7 +145,7 @@ class ServiceManager(object):
 				log.warning(
 					"Couldn't kill 'ghost' service %s: %s"%(name, str(e)))
 
-		if len(self.pids) == 0:
+		if len(self.runners) == 0:
 			return
 
 		for name, runner in self.runners.iteritems():
@@ -262,10 +263,10 @@ class ServiceRunner(object):
 			self.start()
 	
 	def stop(self):
-		os.kill(self.pid(), os.SIGTERM)
+		os.kill(self.pid(), signal.SIGTERM)
 	
 	def kill(self):
-		os.kill(self.pid(), os.SIGKILL)
+		os.kill(self.pid(), signal.SIGKILL)
 
 	def clear(self):
 		os.remove(self.pidfile)
@@ -275,7 +276,7 @@ class ServiceRunner(object):
 			self.pid()
 		except ValueError:
 			return False
-		except ValueError:
+		except IOError:
 			return False
 
 		return True
