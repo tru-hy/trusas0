@@ -42,6 +42,10 @@ class Command(object):
 		return self.command%kwargs
 
 class ServiceManager(object):
+	# TODO: USE THIS!
+	SERVICE_LOCK_FILE='_manager.lock'
+	PID_DIR="_pids"
+
 	class SessionExists(Exception): pass
 	
 	@classmethod
@@ -62,16 +66,31 @@ class ServiceManager(object):
 	def __init__(self, spec, session_dir):
 		self.spec = spec
 		self.services = spec.services
-		self.pids = {}
-		self.filelocks = []
 		self.session_dir = session_dir
-		self.__initialize_services()
+		self.runners = {}
+		# TODO: This is maybe not really our job to track
+
+		pid_dir = path.join(session_dir, "_pids")
+		try:
+			os.mkdir(pid_dir)
+		except OSError, e:
+			if e.errno != errno.EEXIST:
+				raise
+			log.warning("Starting with residual pid directory %s"%pid_dir)
 		
-	def __initialize_services(self):
+
+		self.__initialize_services(pid_dir)
+	
+		
+	def __initialize_services(self, pid_dir):
 		for name, service in self.services.iteritems():
 			service.parametrize(
 				name=name,
 				session_dir=self.session_dir)
+			self.runners[name] = ServiceRunner(name=name,
+					spec=service,
+					pid_dir=pid_dir,
+					session_dir=self.session_dir)
 
 	def __getitem__(self, name):
 		return self.services[name]
@@ -83,98 +102,36 @@ class ServiceManager(object):
 		return self
 
 	def start_service(self, name):
-		service = self.services[name]
-
-		log.info("Starting service %s with command '%s'"%(
-			name, " ".join(service.command)))
-		
-		
-		# Move old files out of the way. Shouldn't cause too much
-		# problems, as the "stream clients" should follow path and
-		# nobody else should be writing or trying to create the file,
-		# so we don't even try to be atomic here. Even the file existing
-		# is a corner case itself.
-		if path.exists(service.outfile) and path.getsize(service.outfile) > 0:
-			prevpath = service.outfile
-			for retry in itertools.count(1):
-				if not path.exists(prevpath):
-					os.rename(service.outfile, prevpath)
-					break
-			
-				prevpath = service.outfile + ".%i"%retry
-			
-			log.warning("Output file for this service already exists, "\
-				"moving the old file to '%s' instead."%prevpath)
-		
-		stdout = open(service.outfile, 'w')
-		stderr = open(service.errfile, 'a')
-
-		pid = start_service(name, service.command,
-			stdout.fileno(), stderr.fileno(), self.session_dir,
-			extra_env=service.extra_env)
-		log.info("Started service %s with pid %i"%(name, pid))
-		self.pids[name] = pid
-		
-		stdout.close()
-		stderr.close()
-		return pid
-
-	def ensure_service(self, name):
-		try:
-			pid = find_service(name)
-		except ServiceNotFound:
-			pass
-		else:
-			return self.reattach_service(name, pid)
-
-		return self.start_service(name)
-
-	def reattach_service(self, name, pid):
-		log.info("Reattaching to service %s to pid %s"%(name, pid))
-		self.pids[name] = pid
+		self.runners[name].start()
 	
+	def ensure_service(self, name):
+		self.runners[name].ensure()
+
 	def is_running(self, name):
-		if name not in self.services:
-			raise ServiceException("Service '%s' not registered."%name)
-		
-		try:
-			pid = self.pids[name]
-		except KeyError:
-			return False
-
-		return pid_is_running(pid)
-
+		return self.runners[name].is_running()
+	
 	def dead_services(self):
 		return [name for name in self.services
 			if not self.is_running(name)]
 
-	def newly_dead_services(self):
-		deads = self._dangling_pids()
-		for dead in deads:	
-			del self.pids[dead]
-		return deads
-
-	def _dangling_pids(self):
-		return [name for name, pid in self.pids.iteritems()
-						if not pid_is_running(pid)]
-	
 	def shutdown(self, timeout=10.0, poll_interval=0.1):
 		"""
 		:todo: Do this asynchronously
 		"""
-		for name, pid in self.pids.iteritems():
+		for name, runner in self.pids.iteritems():
 			try:
-				os.kill(pid, signal.SIGTERM)
-				log.info("Killed %s with pid %s"%(name, pid))
+				runner.stop()
 			except OSError, e:
 				log.warning(
 					"Couldn't tell service %s to stop: %s"%(name, str(e)))
 		
 		for i in range(int(timeout/poll_interval)):
-			for dead in self._dangling_pids():
+			for name, runner in self.runners.iteritems():
+				if not runner.is_dangling(): continue
 				log.info("%s reported dead"%(dead))
-				del self.pids[dead]
-			if len(self.pids) == 0:
+				runner.clear()
+
+			if len(self.runners) == 0:
 				break
 			time.sleep(poll_interval)
 		
@@ -190,14 +147,14 @@ class ServiceManager(object):
 		if len(self.pids) == 0:
 			return
 
-		for name, pid in self.pids.iteritems():
+		for name, runner in self.runners.iteritems():
 			try:
-				os.kill(pid, signal.SIGKILL)
+				runner.kill()
 			except OSError, e:
 				log.warning(
 					"Couldn't kill service %s: %s"%(name, str(e)))
 
-		raise ServiceException("Following services had to be forced to shut down: %s"%str(self.pids))
+		raise ServiceException("Following services had to be forced to shut down: %s"%str(self.runners.keys()))
 		
 
 FILE_TEMPLATE="%(session_dir)s/%(name)s"
@@ -239,6 +196,102 @@ def pid_is_running(pid):
 		return False
 
 	return True
+
+class ServiceRunner(object):
+	def __init__(self, name, spec, pid_dir, session_dir):
+		self.name = name
+		# This doesn't really belong here anymore after we get
+		# rid of the ENV hacking
+		self.session_dir = session_dir 
+		self.pidfile = path.join(pid_dir, name + ".pid")
+		self.spec = spec
+	
+	def pid(self):
+		try:
+			with open(self.pidfile, 'r') as f:
+				pidstr = f.read().strip()
+				return int(pidstr)
+		except ValueError:
+			log.critical("Invalid pid '%s' found in pidfile %s"%(pidstr, self.pidfile))
+			raise
+
+		return int(open(self.pidfile))
+
+	def _set_pid(self, pid):
+		with open(self.pidfile, 'w') as f:
+			f.write(str(int(pid)))
+	
+	def start(self):
+		service = self.spec
+		name = self.name
+		log.info("Starting service %s with command '%s'"%(
+			name, " ".join(service.command)))
+		
+		
+		# Move old files out of the way. Shouldn't cause too much
+		# problems, as the "stream clients" should follow path and
+		# nobody else should be writing or trying to create the file,
+		# so we don't even try to be atomic here. Even the file existing
+		# is a corner case itself.
+		if path.exists(service.outfile) and path.getsize(service.outfile) > 0:
+			prevpath = service.outfile
+			for retry in itertools.count(1):
+				if not path.exists(prevpath):
+					os.rename(service.outfile, prevpath)
+					break
+			
+				prevpath = service.outfile + ".%i"%retry
+			
+			log.warning("Output file for this service already exists, "\
+				"moving the old file to '%s' instead."%prevpath)
+		
+		stdout = open(service.outfile, 'w')
+		stderr = open(service.errfile, 'a')
+
+		pid = start_service(name, service.command,
+			stdout.fileno(), stderr.fileno(), self.session_dir,
+			extra_env=service.extra_env)
+		self._set_pid(pid)
+		log.info("Started service %s with pid %i"%(name, pid))
+
+		stdout.close()
+		stderr.close()
+
+	def ensure(self):
+		if not self.is_running():
+			self.start()
+	
+	def stop(self):
+		os.kill(self.pid(), os.SIGTERM)
+	
+	def kill(self):
+		os.kill(self.pid(), os.SIGKILL)
+
+	def clear(self):
+		os.remove(self.pidfile)
+
+	def has_pidfile(self):
+		try:
+			self.pid()
+		except ValueError:
+			return False
+		except ValueError:
+			return False
+
+		return True
+
+	def is_dangling(self):
+		return self.has_pidfile() and not pid_is_running(self.pid())
+
+	def is_running(self):
+		try:
+			pid = self.pid()
+		except ValueError:
+			return False
+		except IOError:
+			return False
+
+		return pid_is_running(pid)
 
 
 def bury_child(*args):

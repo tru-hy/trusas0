@@ -65,6 +65,7 @@ class WebUi(object):
 class SessionUi(WebUi):
 	def __init__(self, manager, was_running, content):
 		self._manager = manager
+		self._known_corpses = []
 		
 		self._log_watcher = logutils.LogWatcher()
 		# On reattach, seek to the last line of the log.
@@ -85,6 +86,12 @@ class SessionUi(WebUi):
 		embed = WidgetEmbedFactory(self)
 		page.setPluginFactory(embed)
 		page.settings().setAttribute(QWebSettings.PluginsEnabled, True)
+	
+	def _reborn(self, name):
+		try:
+			self._known_corpses.remove(name)
+		except ValueError:
+			pass
 
 	def __template_data(self, template):
 		template = path.join(self._templatedir, template)
@@ -148,12 +155,16 @@ class SessionUi(WebUi):
 		data = data%{'alert_class': alert_class, 'content': content}
 		self._dom.findFirst("#nags").appendInside(data)
 	
+
+	
 	def _do_maintenance(self, *args):
-		for name in self._manager.newly_dead_services():
+		for name in self._manager.dead_services():
+			if name in self._known_corpses: continue
 			log.critical("Service %s died!"%name)
 			data = self.__template_data('dead_service.html')
 			data = data%dict(name=name)
 			self._dom.findFirst("#dead_services").appendInside(data)
+			self._known_corpses.append(name)
 
 		for logpath, record in self._log_watcher.nonblock_iter():
 			try:
@@ -164,6 +175,7 @@ class SessionUi(WebUi):
 				log.exception("Error while showing an error message, how embarassing (and potentially recursive).")
 
 	def force_start_service(self, name):
+		self._reborn(name)
 		self._manager.ensure_service(name)
 
 	def confirm_shutdown(self):
