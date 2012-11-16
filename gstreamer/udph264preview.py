@@ -25,7 +25,7 @@ def preview(udp_port, window_name=None):
 	# if is unavailable or broken
 	pipe_str = "udpsrc uri=udp://0.0.0.0:%i "\
         	'caps="application/x-rtp, media=(string)video, clock-rate=(int)90000, encoding-name=(string)H264" !' \
-        "rtph264depay ! queue ! vdpauh264dec ! "\
+        "rtph264depay ! queue ! ffdec_h264 skip-frame=1 ! "\
         "xvimagesink sync=false"%int(udp_port)
 
 	pipeline = gst.parse_launch(pipe_str)
