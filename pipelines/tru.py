@@ -16,10 +16,25 @@ NEXUS_ADDR = "00:A0:96:2F:A8:A6"
 # in the device name
 NEXUS_PIN = 0115
 
-BASE_SESSION_DIR=os.getenv("TRUSAS_BASE_DIR")
+BASE_SESSION_DIR=None
+BASE_CACHE='/tmp/tru_basedir.txt'
+try:
+	with open(BASE_CACHE) as f:
+		BASE_SESSION_DIR=f.read().strip()
+except IOError:
+	pass
 
 if BASE_SESSION_DIR is None:
 	BASE_SESSION_DIR=sh("zenity --title \\\"Base directory for sessions.\\\" --file-selection --directory").std_out.strip()
+
+if not BASE_SESSION_DIR:
+	os.exit(1)
+
+try:
+	with open(BASE_CACHE, 'w') as f:
+		f.write(BASE_SESSION_DIR)
+except IOError:
+	pass
 
 mypath=path.dirname(path.realpath(__file__))
 
