@@ -1,40 +1,51 @@
+#!/usr/bin/env python2
+
 import time
 import sys
+from utils import get_logger
+import argh
+log = get_logger()
+
+try:
+	import ujson as json
+except ImportError:
+	import json
 
 def default_packer(output=sys.stdout):
 	"""
 	Will allow to change the default easily
 	in the future.
 	"""
-	return ReprPack(output)
+	return JsonPack(output)
 
 def default_unpacker(input=sys.stdin):
 	"""
 	Will allow to change the default easily
 	in the future.
 	"""
-	return ReprUnpack(input)
+	return JsonUnpack(input)
 	
 
 def wrap_object(obj):
 	return ({'ts': time.time()}, obj)
 
-class ReprPack(object):
+
+class LinePack(object):
 	def __init__(self, output):
 		self.output = output
-
+	
 	def send(self, obj, header=None):
 		if header is None:
 			data = wrap_object(obj)
 		else:
 			data = (header, obj)
 		
-		self.output.write(repr(data))
+		self.output.write(self.serialize(data))
 		self.output.write("\n")
 		self.output.flush()
 
-from ast import literal_eval
-class ReprUnpack(object):
+
+class LineUnpack(object):
 	def __init__(self, input):
 		self.input = input
 	
@@ -51,9 +62,23 @@ class ReprUnpack(object):
 				raise StopIteration
 
 			try:
-				return literal_eval(data)
-			except SyntaxError:
+				return self.unserialize(data)
+			except:
 				log.exception("Unrecognized data.")
+
+
+class JsonPack(LinePack):
+	serialize = staticmethod(json.dumps)
+
+class JsonUnpack(LineUnpack):
+	unserialize = staticmethod(json.loads)
+
+class ReprPack(LinePack):
+	serialize = staticmethod(repr)
+
+from ast import literal_eval
+class ReprUnpack(LineUnpack):
+	unserialize = staticmethod(literal_eval)
 
 from Queue import Queue, Empty
 from threading import Thread
@@ -123,8 +148,24 @@ class AsyncIter(object):
 		except Empty:
 			raise StopIteration
 			
-		
+@argh.command
+def convert(unpacker=None, packer=None):
+	if unpacker is None:
+		unpacker = default_unpacker()
+	else:
+		unpacker = eval(unpacker)
+	
+	if packer is None:
+		packer = default_packer()
+	else:
+		packer = eval(packer)
+	
+	for header, data in unpacker:
+		packer.send(data, header=header)
 		
 if __name__ == '__main__':
-	import doctest
-	doctest.testmod()
+	parser = argh.ArghParser()
+	parser.add_commands([convert])
+	parser.dispatch()
+	#import doctest
+	#doctest.testmod()
