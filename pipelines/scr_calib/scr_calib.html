@@ -1,0 +1,83 @@
+<div class="row visualization_widgets">
+<!--
+	<div class="span6">
+		<h4>Video</h4>
+		<object type="x-trusas/widget"
+				width="100%"
+				height="300"
+				window="trusas_front_video"
+				service="front_video"
+				command="%(ROOT)s/gstreamer/udph264preview.py -w trusas_front_video 5000">
+		</object>
+	</div>
+
+	<div class="span6">
+		<h4>Video</h4>
+		<object type="x-trusas/widget"
+				width="100%"
+				height="300"
+				window="trusas_in_video"
+				service="in_video"
+				command="%(ROOT)s/gstreamer/udph264preview.py -w trusas_in_video 5010">
+		</object>
+	</div>
+
+	<div class="span6">
+		<h6>Location</h6>
+		<object type="x-trusas/widget"
+				width="100%"
+				height="300"
+				window="trusas_map"
+				service="location"
+				command="tail --follow=name --retry %(service_out)s |
+					%(ROOT)s/android/location_decode.py |
+					%(ROOT)s/plot/location_plotter.py -w trusas_map"
+				>
+		</object>
+	</div>
+-->
+
+	<div class="span6">
+		<h6>Skin conductance (raw)</h6>
+		<object type="x-trusas/widget"
+				width="100%"
+				window="trusas_sc_raw"
+				service="nexus"
+				command="tail --follow=name --retry %(service_out)s |
+					%(ROOT)s/transform.py &quot;fields(d, sc_left='E', sc_right='F')&quot; &quot;apply(d, sc_right=lambda x: 1.0/x, sc_left=lambda x: 1.0/x)&quot; |
+					%(ROOT)s/plot/signal_plotter.py -w trusas_sc_raw"
+				>
+		</object>
+	</div>
+
+<!--
+
+	<div class="span6">
+		<h6>Acceleration</h6>
+		<object type="x-trusas/widget"
+				width="100%"
+				window="trusas_sensors_accel"
+				service="sensors"
+				command="tail --follow=name --retry %(service_out)s |
+					%(ROOT)s/android/sensor_decode.py |
+					%(ROOT)s/transform.py &quot;fields(d, 'accel_x', 'accel_y', 'accel_z')&quot; |
+					%(ROOT)s/plot/signal_plotter.py -w trusas_sensors_accel"
+				>
+		</object>
+	</div>
+	
+	<div class="span6">
+		<h6>Rotation rate</h6>
+		<object type="x-trusas/widget"
+				width="100%"
+				window="trusas_sensors_rot"
+				service="sensors"
+				command="tail --follow=name --retry %(service_out)s |
+					%(ROOT)s/android/sensor_decode.py |
+					%(ROOT)s/transform.py &quot;fields(d, 'rot_rate_x', 'rot_rate_y', 'rot_rate_z')&quot; |
+					%(ROOT)s/plot/signal_plotter.py -w trusas_sensors_rot"
+				>
+		</object>
+	</div>
+-->
+</div>
