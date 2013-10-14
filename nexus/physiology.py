@@ -19,7 +19,7 @@ def record(nexus_address, output):
 def main(nexus_address, pin=None):
 	if pin:
 		# TODO: Check the status
-		Popen("echo %s |bluez-simple-agent",
+		Popen("echo %s |bluez-simple-agent"%(pin,),
 			stdout=open(os.devnull), stderr=open(os.devnull),
 			shell=True)
 	record(nexus_address, default_packer())

@@ -14,7 +14,7 @@ import os
 NEXUS_ADDR = "00:A0:96:2F:A8:A6"
 # This is no big secret as it's broadcasted
 # in the device name
-NEXUS_PIN = 0115
+NEXUS_PIN = "0115"
 
 BASE_SESSION_DIR=None
 BASE_CACHE='/tmp/tru_basedir.txt'
@@ -40,7 +40,7 @@ mypath=path.dirname(path.realpath(__file__))
 
 s = ServiceSpec()
 
-s['nexus'] = ROOT+'/nexus/physiology.py -p %i %s'%(NEXUS_PIN, NEXUS_ADDR)
+s['nexus'] = ROOT+'/nexus/physiology.py -p %s %s'%(NEXUS_PIN, NEXUS_ADDR)
 
 # TODO: Find a nicer way to find the devices! This configuration working
 #	 may be purely luck.
