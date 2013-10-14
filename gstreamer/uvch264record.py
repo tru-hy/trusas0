@@ -21,6 +21,8 @@ UTC timestamping for global synchronization.
 	from the output file, but this will probably cause problems, at least
 	because the matroska mux/demux-pair isn't very friendly for playing
 	unfinished files.
+:todo: Switch back to mpegts and store the sync externally. All these problems
+	just aren't worth it.
 """
 import sys
 import argh
@@ -160,7 +162,7 @@ def record(output_file="/dev/stdout", udp_h264_port=None, video_device=None, aud
 		
 		pipe_str += \
 		' uvch264_src device=%(video_device)s auto-start=true name=video_src ' \
-			'fixed-framerate=true initial-bitrate=50000000 ' \
+			'fixed-framerate=true initial-bitrate=50000000 profile=baseline ' \
 			'video_src.vidsrc ! video/x-h264,width=1280,height=720,framerate=30/1 ! ts_src.sink '\
 			'ts_src.src ! h264parse ! tee name=vidtee ' \
 			'vidtee.src0 ! queue ! mux. ' \
