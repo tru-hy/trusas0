@@ -57,7 +57,13 @@ class WebUi(object):
 		document = frame.documentElement()
 		self._dom = document
 		
-	def _js(self, js):
+	def _js(self, js, ignore_return=True):
+		if ignore_return:
+			# Serializing the return value is a VERY (about 1GB memory)
+			# expensive operation if it returns something from the DOM.
+			# If a return value is needed, be sure to cast it so that
+			# it doesn't refer to the DOM.
+			js = js + ";null;"
 		return self._widget.page().mainFrame().evaluateJavaScript(js)
 
 
