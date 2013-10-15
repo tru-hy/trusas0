@@ -48,7 +48,20 @@
 				>
 		</object>
 	</div>
-
+	
+	<div class="span6">
+		<h6>Speed</h6>
+		<object type="x-trusas/widget"
+				width="100%"
+				window="trusas_location_speed"
+				service="location"
+				command="tail --follow=name --retry %(service_out)s |
+					%(ROOT)s/android/location_decode.py |
+					%(ROOT)s/transform.py &quot;fields(d, 'speed')&quot; |
+					%(ROOT)s/plot/signal_plotter.py -w trusas_location_speed"
+				>
+		</object>
+	</div>
 
 	<div class="span6">
 		<h6>Acceleration</h6>
