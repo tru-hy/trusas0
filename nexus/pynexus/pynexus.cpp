@@ -9,6 +9,9 @@ struct nexus_struct {
 	TmsiAmplifier *amp = NULL;
 	vector<float> buffer;
 	string error = "";
+	// Hacky buffer used to pass channel
+	// names to numpy.
+	string _channelNames;
 };
 
 nexus_struct *start(const char *btaddr) {
@@ -39,7 +42,8 @@ int number_of_channels(nexus_struct *nexus) {
 }
 
 const char *channel_names(nexus_struct *nexus) {
-	string names;
+	string& names = nexus->_channelNames;
+	names.clear();
 	for(int i = 0; i < nexus->amp->channels_desc.size(); ++i) {
 		channel_desc &desc = nexus->amp->channels_desc[i];
 		names += desc.name + ",";
