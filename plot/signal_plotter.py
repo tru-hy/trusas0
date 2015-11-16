@@ -76,7 +76,6 @@ class SignalPlot(QwtPlot):
 		self.setAxisScale(self.xBottom, start_x, max_x)
 		self.replot()
 
-@argh.command
 def main(window_title=None, quit_on_eof=False):
 	from trusas0.packing import default_unpacker, AsyncIter
 
@@ -112,11 +111,5 @@ def main(window_title=None, quit_on_eof=False):
 	app.exec_()
 
 if __name__ == '__main__':
-	parser = argh.ArghParser()
+        argh.dispatch_command(main)
 	
-	argv = sys.argv[1:]
-	# Hacking to disable the subcommand stuff.
-	# See: https://bitbucket.org/neithere/argh/issue/13/
-	subparser = parser.add_commands([argh.alias('')(main)])
-	parser.dispatch(argv=['']+argv)
-

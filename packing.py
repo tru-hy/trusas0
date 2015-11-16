@@ -148,7 +148,6 @@ class AsyncIter(object):
 		except Empty:
 			raise StopIteration
 			
-@argh.command
 def convert(unpacker=None, packer=None):
 	if unpacker is None:
 		unpacker = default_unpacker()

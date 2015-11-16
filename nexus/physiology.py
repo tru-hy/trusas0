@@ -15,16 +15,13 @@ def record(nexus_address, output):
 	for sample in dev:
 		output.send(sample)
 
-@argh.command
 def main(nexus_address, pin=None):
 	if pin:
 		# TODO: Check the status
-		Popen("echo %s |bluez-simple-agent"%(pin,),
+		Popen("echo %s |bt-agent"%(pin,),
 			stdout=open(os.devnull), stderr=open(os.devnull),
 			shell=True)
 	record(nexus_address, default_packer())
 
 if __name__ == '__main__':
-	parser = argh.ArghParser()
-	parser.add_commands([argh.alias('')(main)])
-	parser.dispatch(argv=['']+sys.argv[1:])
+        argh.dispatch_command(main)

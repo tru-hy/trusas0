@@ -40,7 +40,7 @@ def fields(d, *fields, **rename):
 		for (new, old) in rename.iteritems() if old in d})
 	return new_d
 
-@argh.plain_signature
+#@argh.plain_signature
 @argh.arg('transformation', type=str, nargs='+')
 # TODO: Handle these when needed
 #@argh.arg('-n', '--nonlambda', type=str, nargs='+')
@@ -54,6 +54,4 @@ def main(transformation):
 		output.send(d, header=header)
 	
 if __name__ == '__main__':
-	parser = argh.ArghParser()
-	parser.add_commands([argh.alias('')(main)])
-	parser.dispatch(argv=['']+sys.argv[1:])
+        argh.dispatch_command(main)
