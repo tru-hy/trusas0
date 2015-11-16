@@ -11,13 +11,13 @@ import logging
 import os
 
 
-#NEXUS_ADDR = "00:A0:96:2F:A8:A6"
+NEXUS_ADDR = "00:A0:96:2F:A8:A6"
 # This is no big secret as it's broadcasted
 # in the device name
-#NEXUS_PIN = 0115
+NEXUS_PIN = "0115"
 
-NEXUS_ADDR = "00:A0:96:2D:C3:99"
-NEXUS_PIN = "0089"
+#NEXUS_ADDR = "00:A0:96:2D:C3:99"
+#NEXUS_PIN = "0089"
 
 BASE_SESSION_DIR=None
 BASE_CACHE='/tmp/scr_calib_basedir.txt'
