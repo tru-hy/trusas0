@@ -2,6 +2,7 @@ import ctypes
 from os import path
 
 _lib = ctypes.CDLL(path.join(path.dirname(__file__), "libpynexus.so"))
+_lib.get_error.restype = ctypes.c_char_p
 
 class NexusException(Exception): pass
 
@@ -9,7 +10,7 @@ class Nexus(object):
 	
 	def __init__(self, btaddr):
 		self.__nexus = _lib.start(btaddr)
-		error = ctypes.c_char_p(_lib.get_error(self.__nexus)).value
+		error = _lib.get_error(self.__nexus)
 		if error:
 			raise NexusException(error)
 

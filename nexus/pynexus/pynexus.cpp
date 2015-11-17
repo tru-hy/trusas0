@@ -8,7 +8,7 @@ extern "C" {
 struct nexus_struct {
 	TmsiAmplifier *amp = NULL;
 	vector<float> buffer;
-	string error = "";
+	string error;
 	// Hacky buffer used to pass channel
 	// names to numpy.
 	string _channelNames;
