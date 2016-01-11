@@ -258,7 +258,8 @@ class SessionStarterUi(WebUi):
 		# Why is there no dummy layout?
 		self._dialog.setLayout(QStackedLayout())
 		self._dialog.layout().addWidget(self._widget)
-		self._dialog.showFullScreen()
+		#self._dialog.showFullScreen()
+		self._dialog.show()
 		self._dialog.exec_()
 		return self._ui
 
@@ -321,8 +322,8 @@ def run_ui(spec, base_dir, content):
 		ui._shutdown()
 		app.exit()
 	register_shutdown(ui_shutdown)
-	ui._widget.showFullScreen()
-	#ui._widget.show()
+	#ui._widget.showFullScreen()
+	ui._widget.show()
 	app.exec_()
 	
 
