@@ -2,8 +2,8 @@ import os
 from os import path
 import trusas0
 from trusas0.service import ServiceManager, get_running_session
-from PyQt4.Qt import *
-from PyQt4.QtGui import *
+from PyQt5.Qt import *
+from PyQt5.QtGui import *
 import signal
 import subprocess
 import re
@@ -40,7 +40,7 @@ class StaticWebPage(QWebPage):
 			return False
 		
 		action = str(url.path())[len(base_url.path()):]
-		args = {str(k): str(v) for (k, v) in url.queryItems()}
+		args = {str(k): str(v) for (k, v) in QUrlQuery(url).queryItems()}
 		getattr(self.controller, action)(**args)
 		return False
 
@@ -92,7 +92,7 @@ class SessionUi(WebUi):
 		WebUi.__init__(self, template_file)
 
 		page = self._widget.page()
-		embed = WidgetEmbedFactory(self)
+		embed = WidgetEmbedFactory(self, self._widget)
 		page.setPluginFactory(embed)
 		page.settings().setAttribute(QWebSettings.PluginsEnabled, True)
 	
@@ -311,6 +311,8 @@ def run_ui(spec, base_dir, content):
 	# crash when we return from here. Investigate and hack around.
 		
 	app = QApplication([])
+        app.setAttribute(Qt.AA_NativeWindows)
+        app.setAttribute(Qt.AA_ForceRasterWidgets)
 	_qt_scope_hack(app)
 		
 	start_ui = SessionStarterUi(spec, base_dir, content)
@@ -325,41 +327,35 @@ def run_ui(spec, base_dir, content):
 	#ui._widget.showFullScreen()
 	ui._widget.show()
 	app.exec_()
-	
 
 class WidgetEmbedFactory(QWebPluginFactory):
-	def __init__(self, ui, parent=None, poll_interval=1.0,):
+	def __init__(self, ui, parent):
 		QWebPluginFactory.__init__(self, parent)
-		self.poll_interval = poll_interval
 		self.ui = ui
 		
 		self.widgets = {}
-
-		# There's probably a way to get notified
-		# by X when a new window opens or better yet
-		# make the clients to take a window id, but this
-		# must suffice for now
-		self.swallow_timer = QTimer()
-		self.swallow_timer.timeout.connect(self._swallow_windows)
 	
-	def create(self, mimeType, url, names, values):
+        def create_(self, mimeType, url, names, values):
 		if mimeType != "x-trusas/widget":
 			return None
-		
-		self.swallow_timer.start(int(self.poll_interval*1000))
 		param = dict((str(n), str(v)) for (n, v) in zip(names, values))
-		
-		window = param["window"]
-		if window not in self.widgets.iteritems():
-			self.widgets[window] = QX11EmbedContainer(self.parent())
-
-		widget = self.widgets[window]
-
 		if "command" not in param:
-			return widget
+			return None
+                container = QWidget()
+                container.setSizePolicy(QSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored))
+                container.setLayout(QVBoxLayout())
+                #window = QWindow()
+                #winId = int(window.winId())
+                widget = QWidget(None, Qt.BypassWindowManagerHint)
+                widget.setStyleSheet("background-color: red")
+                winId = int(widget.winId())
+                #window.setFlags(Qt.BypassWindowManagerHint | Qt.Window)
+                #widget = QWidget.createWindowContainer(window)
+                #widget = QPushButton("Foo")
+                #container.layout().addWidget(widget)
 		
 		args = dict(ROOT=trusas0.ROOT)
-			
+		
 		if "service" in param:
 			try:
 				service = self.ui._manager.services[param["service"]]
@@ -368,14 +364,65 @@ class WidgetEmbedFactory(QWebPluginFactory):
 				return None
 			args['service_out'] = service.outfile
 		
+                args['winId'] = str(winId)
+                env = os.environ.copy()
+                env['TRUSAS_WINDOW_ID'] = args['winId']
 		command = param["command"]%args
+                def launch(command=command, env=env):
+		    subprocess.Popen(command, shell=True, env=env)
+                launch()
+		return None
+
+	def create(self, mimeType, url, names, values):
+		if mimeType != "x-trusas/widget":
+			return None
+		param = dict((str(n), str(v)) for (n, v) in zip(names, values))
 		
-		if find_x_window_id(window):
-			log.info("Using an existing process for command %s"%command)
-			return widget
+		window = param["window"]
+		if window not in self.widgets.iteritems():
+			self.widgets[window] = widget = QWidget()
+                        widget.winId()
+                        widget.setLayout(QVBoxLayout())
+                        #widget.setSizePolicy(QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding))
+
+		widget = self.widgets[window]
 		
-		log.info("Launching widget command: %s"%command)
-		subprocess.Popen(command, shell=True)
+		args = dict(ROOT=trusas0.ROOT)
+		
+		if "service" in param:
+			try:
+				service = self.ui._manager.services[param["service"]]
+			except KeyError:
+				log.error("The interface thinks there should be a service '%s', but there's not. This is an configuration error."%param["service"])
+				return None
+			args['service_out'] = service.outfile
+		
+                def swallow():
+                    while True:
+                        wid = find_x_window_id(window)
+                        if wid is not None: break
+                        yield 100
+                    # Something like this should maybe work in theory
+                    w = QWindow.fromWinId(wid)
+                    container = QWidget.createWindowContainer(w)
+                    container.setSizePolicy(QSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding))
+                    widget.layout().addWidget(container)
+                
+                def sleeptramp(gen):
+                    def step():
+                        try:
+                            delay = gen.next()
+                        except StopIteration:
+                            return
+                        QTimer.singleShot(delay, step)
+                    step()
+                
+                # Disabled for now, as the Qt5 embed seems to be
+                # very buggy, and manages to even crash Gnome/Mutter
+		#sleeptramp(swallow())
+                if "command" in param and not find_x_window_id(window):
+		    subprocess.Popen(param["command"]%args, shell=True)
+                
 		return widget
 		
 	
@@ -389,41 +436,6 @@ class WidgetEmbedFactory(QWebPluginFactory):
 		mimeType.fileExtensions = []
 		plugin.mimeTypes = [mimeType]
 		return [plugin]
-
-	def _swallow_windows(self):
-		# TODO: The poll interval has to be (too) large now
-		#	because apparently this will get called multiple
-		#	times in parallel(?) if the swallow is too slow. Or
-		#	something else weird is happening, has the windows
-		#	tend to "flicker" with small intervals. Investigate
-		#	and fix.
-
-		for name, widget in self.widgets.iteritems():
-			try:
-				winid = widget.clientWinId()
-			except RuntimeError:
-				# If we hide the element that contains
-				# the widget, Qt deletes the underlying
-				# widget.
-				# :todo: Fix this perhaps using iframes
-				#	which would maybe also allow
-				#	proper z-indexing for the embedded
-				#	widgets
-				winid = 0
-				widgets = QX11EmbedContainer(self.parent())
-				self.widgets[name] = widget
-			
-			if winid > 0:
-				continue
-			wid = find_x_window_id(name)
-			if not wid: continue
-			try:
-				widget.embedClient(wid)
-			except RuntimeError:
-				# See above
-				pass
-			
-
 
 def find_x_window_id(name):
 	# Most likely not the most efficient nor nice way to do this
