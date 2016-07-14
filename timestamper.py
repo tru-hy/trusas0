@@ -7,7 +7,6 @@ overkill (albeit more elegant ;) way.
 import time, sys, argh
 from packing import default_packer
 
-@argh.command
 def main(interval=0.1):
 	output = default_packer()
 	while True:
@@ -15,7 +14,5 @@ def main(interval=0.1):
 		time.sleep(interval)
 
 if __name__ == '__main__':
-	parser = argh.ArghParser()
-	parser.add_commands([argh.alias('')(main)])
-	parser.dispatch(argv=['']+sys.argv[1:])
+	argh.dispatch_command(main)
 	
