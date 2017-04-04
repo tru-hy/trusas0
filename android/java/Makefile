@@ -2,7 +2,7 @@
 # You will most likely have to edit these if you
 # want to compile this. Also assumes the needed tools
 # are in PATH
-ANDROID_JAR=/opt/android-sdk/platforms/android-10/android.jar
+ANDROID_JAR=$(HOME)/tmp/android-sdk-linux/platforms/android-10/android.jar
 GSON_JAR=lib/gson-2.2.2.jar
 
 SENSOR_PORT=27545
@@ -10,7 +10,7 @@ LOCATION_PORT=27546
 
 BUILD_DIR=build
 PACKAGE_PATH=independent/trusas
-JFLAGS =  -target 1.6 -d $(BUILD_DIR) -cp $(ANDROID_JAR):$(GSON_JAR)
+JFLAGS = -source 1.6 -target 1.6 -d $(BUILD_DIR) -cp $(ANDROID_JAR):$(GSON_JAR)
 JC = javac
 
 TrusasSensorDump.apk : TrusasSensorDump-unsigned.apk Insecure.keystore

@@ -75,7 +75,7 @@ class SocketLineReader(object):
 def main(retries=10, retry_delay=0.5):
 	adb = lambda cmd, ADB=ADB: sh("%s %s"%(ADB, cmd))
 	adb("forward tcp:%i tcp:%i"%(SENSOR_PORT, SENSOR_PORT))
-	adb("install %s"%SERVER_APK)
+	adb("install -r -g %s"%SERVER_APK)
 	adb("shell am startservice -a independent.trusas.SensorDumpManager")
 	
 	for retry in range(retries):
