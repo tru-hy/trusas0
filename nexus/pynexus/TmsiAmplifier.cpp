@@ -710,7 +710,8 @@ void TmsiAmplifier::set_active_channels(vector<string>& channels)
     for (unsigned int i=0;i<channels.size();i++)
     {
         stringstream stream(channels[i]);
-        if ((stream>>tmp)==0)
+	stream >> tmp;
+        if (tmp==0)
         {
             bool ok=false;
             for(unsigned int j=0;j<channels_desc.size();j++)
