@@ -3,17 +3,12 @@ Promise = require 'bluebird'
 axios = require 'axios'
 R = require 'lazyremote'
 module.exports =
-	created: ->
-		@remote = @trusas()
-		console.log @remote
-		activeSession = await R.resolve(@remote.sessions.activeSession())
-		console.log activeSession
-		if activeSession
-			@$router.replace "/session/"
-
 	data: ->
 		sessionId: ""
-
+		YESSHOWITDAMN: true
+	
+	mounted: ->
+		@$el.querySelector("#session_id input").focus()
 	computed:
 		inputErrors: ->
 			errors = []
@@ -27,27 +22,26 @@ module.exports =
 
 	methods:
 		useCurrentTimestamp: ->
-			@sessionId = await R.resolve @remote.sessions.date()
+			@sessionId = await R.resolve @$router.trusas.sessions.date()
 		
 		start: ->
-			await R.resolve @remote.sessions.createSession @sessionId
-			@$router.replace "/session/"
+			s = await R.resolve @$router.trusas.sessions.createSession @sessionId
+			@$router.replace "/session/#{s}"
 
 </script>
 
 
 <template lang="pug">
 v-app
-	v-content
-		v-container(fluid)
-			v-row
-				v-col(xs6,offset-xs3)
-					v-card.startSession.elevation-1
+	v-modal(persistent,v-bind:value="true")
+					v-card.startSession
 						v-card-row.success
 							v-card-title.white--text Start a new session
 						v-card-text
 							v-row
 								v-text-field(
+									persistent-hint,
+									id="session_id",
 									name="sessionId",label="Session id",
 									v-model="sessionId",required,
 									prependIcon="label",

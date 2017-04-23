@@ -27,6 +27,7 @@ module.exports =
 		plot = plt.figure
 			x_range: xrng
 			y_range: yrng
+			sizing_mode: "stretch_both"
 			tools: []
 		plot.toolbar.logo = null
 		plot.toolbar_location = null

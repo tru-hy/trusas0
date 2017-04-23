@@ -7,7 +7,7 @@ module.exports =
 		filename: 'ui.mangled.js'
 	module:
 		rules: [
-			(test: /\.css$/, loader: 'style-loader!css-loader'),
+			(test: /\.css$/, loader: 'style-loader!css-loader?url=false'),
 			(test: /\.coffee$/, loader: 'babel-loader!coffee-loader'),
 			(test: /\.vue$/, loader: "vue-loader", options:
 				loaders:

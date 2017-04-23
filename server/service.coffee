@@ -8,6 +8,7 @@ Readline = require 'readline'
 ShellQuote = require 'shell-quote'
 disown = require './utils/disown.coffee'
 Lockfile = Promise.promisifyAll require 'lockfile'
+_ = require 'lodash'
 
 Most = require 'most'
 Most.hold = require('@most/hold').hold
@@ -52,9 +53,6 @@ class Runner extends EventEmitter
 				add state
 				await Sleep 100
 			end()
-		@state.forEach (state) =>
-			console.log "State", @name, state
-		return
 
 	wait_for: (target) ->
 		await @state.filter((s) -> s == target).take(1).drain()
@@ -150,25 +148,25 @@ class Runner extends EventEmitter
 class @SessionServer
 	constructor: (@spec, @base_directory) ->
 		@lockfile = Path.join @base_directory, '_session.lock'
-		@__active_session = null
+		@__session_cache = {}
 	
 	date: -> (new Date()).toISOString()
 	
-	activeSession: ->
+	activeSessionId: ->
 		try
 			session_id = String await fs.readFileAsync @lockfile
 		catch error
 			if error.code == 'ENOENT'
-				@__active_session = null
 				return null
 			else
 				throw error
 		
-		if @__active_session and @__active_session.session_id == session_id
-			return @__active_session
-		
+		return session_id
 
 		@__active_session = new Session @spec, @base_directory, session_id
+	
+	getSession: (session_id) ->
+		return new Session @spec, @base_directory, session_id
 
 	createSession: (session_id, opts={}) ->
 		if fs.existsSync @lockfile
@@ -178,11 +176,10 @@ class @SessionServer
 			throw new SessionError("Session with id #{session_id} already exists!")
 		fs.mkdirSync directory
 		await fs.writeFileAsync @lockfile, session_id
-		session = new Session @spec, @base_directory, session_id
-		@__active_session = session
+		session = @getSession session_id
 		if opts.autostart ? true
 			await session.start()
-		return session
+		return session_id
 
 class Session
 	constructor: (@spec, @base_directory, @session_id) ->

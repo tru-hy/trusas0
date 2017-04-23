@@ -5,13 +5,14 @@
 	padding-top: 30px;
 	color: white;
 }
-
+.viz-grid {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+}
 </style>
 
 <template lang="pug">
-v-app(left-fixed-sidebar,top-fixed-toolbar)
-	v-toolbar(fixed)
-		v-toolbar-side-icon(@click.native.stop="sidebar = !sidebar")
+v-app(left-fixed-sidebar)
 	main
 		v-sidebar(v-model="sidebar",fixed)
 			.logo
@@ -26,27 +27,26 @@ v-app(left-fixed-sidebar,top-fixed-toolbar)
 							v-list-tile-title {{info.service.label || name}}
 							
 						v-list-tile-action
-							v-icon(v-if="info.state == 'running'",success,title='Running').success--text check_circle
+							v-icon(v-if="info.state == 'running'",success,title='Running').success--text lens
+							v-icon(v-else-if="info.state == 'terminated'",success,title='Finished').primary--text check_box
 							v-icon(v-else-if="info.state == 'dead'",error,title='Dead').error--text error
 							v-progress-circular(v-else,indeterminate,title='Unknown').primary--text
 				v-divider(light)
 				v-btn(large,warning,block,raised,@click.native="confirmTerminate = true") Terminate
 
-			v-modal(id="terminate")
 		v-content
+			v-alert(v-bind:value="isTerminated",info,icon="check_box")
+				div This session is finished. You can look around, but nothing intresting's gonna happen.
+					v-btn(primary,@click.native="$router.replace('/')") Start a new one
 			v-container(fluid)
-				v-row
-					v-col(xs6)
-						v-card
+				.viz-grid
+					v-card
 							trusas-timeseries(v-if="getRemote()",:service="getRemote().services.test",:api="getApi()")
-					v-col(xs6)
-						v-card
+					v-card
 							v-card-text STUFF
-					v-col(xs6)
-						v-card
+					v-card
 							v-card-text STUFF
-					v-col(xs6)
-						v-card
+					v-card
 							v-card-text STUFF
 		
 		v-modal(persistent,v-model="confirmTerminate")
@@ -56,7 +56,7 @@ v-app(left-fixed-sidebar,top-fixed-toolbar)
 					v-card-text Terminate the session only after the experiment is over.
 					v-card-row(actions)
 						v-btn(flat,@click.native="confirmTerminate = false") Cancel
-						v-btn(flat,warning,@click.native="terminate()") Terminate
+						v-btn(flat,warning,@click.native="terminate(); confirmTerminate = false") Terminate
 			
 
 </template>
@@ -67,34 +67,32 @@ Vue = require 'vue'
 Vue.component 'trusas-timeseries', require './timeseries.vue'
 module.exports =
 	created: ->
-		@api = @trusas()
-		@remote = @api.sessions.activeSession()
+		@api = @$router.trusas
+		@remote = @api.sessions.getSession @$route.params.id
 		@session = await R.resolve @remote
-
-		console.log "Here"
-		console.log @session
-		if not @session
-			@$router.replace '/'
-			return
-	
 		for name of @session.services then do (name) =>
 			s = @remote.services[name]
 			@states[name] = 'unknown'
 			await R.resolve s.state.forEach (state) =>
 				@session.services[name].state = state
 				@states[name] = state
-				console.log @states
 	
 	data: ->
 		session: {}
 		confirmTerminate: false
 		sidebar: true
 		states: {}
+	
+	computed:
+		isTerminated: ->
+			for name, service of @session.services
+				if service.state != 'terminated'
+					return false
+			return true
 
 	methods:
 		getRemote: -> @remote
 		getApi: -> @api
 		terminate: ->
 			await R.resolve @remote.terminate()
-			@$router.replace '/'
 </script>

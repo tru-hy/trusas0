@@ -6,7 +6,8 @@
   "scripts": {
     "build": "webpack -d",
     "watch": "webpack -d --watch",
-    "test": "mocha --compilers coffee:coffeescript/register --full-trace"
+    "test": "mocha --compilers coffee:coffeescript/register --full-trace",
+    "develop": "webpack -d --watch & nodemon serve.coffee"
   },
   "author": "Jami Pekkanen",
   "license": "AGPL-3.0",
